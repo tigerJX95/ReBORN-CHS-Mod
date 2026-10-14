@@ -1,0 +1,1853 @@
+﻿<!DOCTYPE html>
+	<html>
+	<head>
+
+	<meta http-equiv="x-ua-compatible" content="IE=8" />
+    <link rel="stylesheet" type="text/css" href="styles10.css">
+    <style type="text/css">
+
+	body, html {height:100%; margin:0;}
+
+	.tablink {background-color:#e5e5e5; overflow:hidden; font:1em Microsoft Yahei UI;}
+	.tablink a {margin:0; background-color:#555; color:white; text-align:center; float:left; border:none; border-bottom:1px solid #d0d0d0; outline:none; cursor:pointer; padding:0.31em 2px; width:13%;}
+	.tablink a:hover {padding:0.31em 2px; background-color:#777;}
+	.tablink a:focus {padding:0.31em 2px; background-color:#777;}
+	.tablink a:focus a:hover {padding:0.31em 2px; background-color:#777;}
+	.tabcontent {display:none; padding:1px;}
+
+	input[type="checkbox"] {vertical-align:middle; position:relative; width:17px; height:15px; border:0; padding:2px 1px; margin:5px 0;}
+	input[type="checkbox"]:focus {border:1px solid #0078D7; padding:1px 0;}
+	input[type="checkbox"]:hover:focus {border:1px solid #0078D7; padding:1px 0;}
+	input[type="checkbox"]:hover {border:1px solid #000000; padding:1px 0;}
+	input[readonly] {background-color:#E1E1E1;}
+	.checkbox_label {padding:0; margin:0; vertical-align:middle; margin-left:0.31em;}
+
+	input[type="radio"] {vertical-align:middle; position:relative; width:17px; height:15px; border:0; padding:2px 1px; margin:5px 0;}
+	input[type="radio"]:focus {border:1px solid #0078D7; padding:1px 0;}
+	input[type="radio"]:hover:focus {border:1px solid #0078D7; padding:1px 0;}
+	input[type="radio"]:hover {border:1px solid #000000; padding:1px 0;}
+
+	.info1 {padding:0.7em 0 1.57em 0;}
+	.info2 {padding:0.7em 0 0;}
+	.info3 {margin:0 2% 0 0; padding:0;}
+	.info4 {padding:0 0 0.31em;}
+	.info4600 {padding:0 0 0.31em; font-weight:600;}
+	.info5 {padding:0.7em 0 0.31em;}
+	.info5600 {padding:0.7em 0 0.31em; font-weight:600;}
+	.info6 {padding:1.25em 0 0.7em;}
+	.info7 {padding:1em 0 0 0;}
+	.info8 {padding:1.25em 0 0;}
+	.info9 {padding:1.25em 20% 0 0;}
+
+	.info1, .info3,  .info2, .info3, .info4, info4600, .info5, .info5600, .info6, .info7, .info8, .info9 {
+		word-wrap:break-word; white-space:pre-wrap;
+	}
+
+	.input_cnt1 {padding-top:0.31em; padding-bottom:0.31em;}
+	.input_cnt2 {padding-top:0.7em; padding-bottom:0.31em;}
+	.input_cnt3 {padding-top:0.7em;}
+	.input_cnt4 {padding-bottom:0.44em;}
+	.input_cnt5 {margin:5px 0}
+	.input3 {width:3em;}
+	.input7 {width:7.5%;}
+	.input15 {width:15%;}
+	.input21 {display:inline-block; vertical-align:middle; width:21%; margin-left:2%; margin-right:0;}
+	.input35 {display:inline-block; vertical-align:middle; width:35%; margin-bottom:0.31em;}
+	.input40 {display:inline-block; vertical-align:middle; width:40%; margin-left:5%;}
+	.input70 {display:inline-block; vertical-align:middle; width:70%;}
+	.input71 {display:inline-block; vertical-align:middle; width:71%; margin-left:2%;}
+	.input75 {display:block; width:75%;}
+	.input98 {display:inline-block; vertical-align:middle; width:98%;}
+	.input99 {display:inline-block; vertical-align:middle; width:98%; border:none !important; background:none;}
+	.inputFull {display:block; width:35%;}
+	.inp_label1 {display:block; padding-top:0em; margin:0.31em 0;}
+	.inp_label2 {padding-left:0.46em;}
+
+	.btn_cnt {padding:0.7em 1em; position:absolute; bottom:0; right:0; left:0;}
+	#btn_cnt_right {background:#e5e5e5; border-top:1px solid #d0d0d0; text-align:right;}
+	#btn_cnt_left {text-align:left;}
+	#btn_cnt_center {text-align:center;}
+	#mainMargin {margin: 0 2%}
+
+	.alignLeftH {width:23%; margin-left:4%; padding:1.01em 0 0.31em; float:left;}
+	.alignRightH {padding:1.01em 0 0.31em; float:left;}
+	.div_text1 {padding:1.01em 0 0.31em;}
+	.div_text2 {padding:0.7em 0 0.31em;}
+	.div_text3 {padding:1.01em 0 0.7em 0;}
+	.div_text4 {padding:1.25em 0 0.7em;}
+	.div_text6 {padding:1.25em 0 0.31em;}
+	.div_text7 {padding:1.01em 0 0;}
+	.alignLeftH, .alignRightH, .div_text1, .div_text2, .div_text3, .div_text4, .div_text6, .div_text7 {
+		font:bold 1em Microsoft Yahei UI; color:#0066cc; word-wrap:break-word; white-space:pre-wrap;
+	}
+
+	.dropbtn {white-space:nowrap; width:100%; background-color:#3e8e41; color:white; text-decoration:none; padding:0.13em 5px; border:none; cursor:pointer;}
+	.dropbtnLight {white-space:nowrap; width:100%; color:black; text-decoration:none; padding:0.13em 5px; border:none; cursor:pointer;}
+	.dropbtn:after {font-family: Reborn-Symbols; content: "\f107"; padding-left:0.5em; padding-right:0.19em;}
+	.dropbtnLight:after {font-family: Reborn-Symbols; content: "\f107"; padding-left:0.5em; padding-right:0.19em;}
+	.dropdown {margin-top: 10px; position:static; display:inline-block;}
+	.dropdown-content {display:none; position:absolute; background-color:#f9f9f9; min-width:10em; white-space:nowrap; box-shadow:0 8px 1.01em 0 rgba(0,0,0,0.2); z-index:1;}
+	.dropdown-content a {padding:0.13em 5px; color:black; text-decoration:none; display:block;}
+	.dropdown-content a:hover {background-color:#f1f1f1;}
+	.dropdown .dropdown-content {display:none;}
+	.dropdown:hover .dropbtn {background-color:#4CAF50;}
+	.dropdown:hover .dropbtnLight {background-color:Gainsboro;}
+
+	.dropArrow {display:inline-block; font-family: Reborn-Symbols; padding-left:0.5em; padding-right:0.19em;}
+
+	.pad {height:1.57em;}
+	.stub {border:0; vertical-align:middle; margin-bottom:0.2em;}
+
+	table {width: 100%; text-align:center; border-collapse:collapse; border:1px solid Gainsboro; empty-cells:show;}
+	th {font:bold 95% Microsoft Yahei UI; color:green; border:0;}
+	td {padding-right:5px; border:0;}
+	tr {border:0;}
+	.table77 {width:76.5%;}
+	.table98 {line-height:1.62em; text-align:left; vertical-align:top; border:1px solid Gainsboro;}
+
+	.column25 {width:25%;}
+	.column27 {width:27%;}
+	.column29 {width:29%;}
+	.column32 {width:32%;}
+	.column33 {width:33%;}
+	.column38 {width:38%;}
+	.column41 {width:41%;}
+	.column50 {width:50%;}
+	.column61 {width:61%;}
+	.column70 {width:66%;}
+
+	.column25, .column27, .column29, .column32, .column33, .column38, .column41, .column50, .column61, .column70 {
+		margin:0; padding:0; float:left;
+	}
+
+	.row:after {content:""; display:table; clear:both;}
+
+	ul {margin-top:0; margin-bottom:0;}
+
+	</style>
+	</head>
+	<body>
+		<div style="clear:both;"></div>
+		<div id="tablink" class="tablink">
+			<a onclick="openPage('views', this, 'red')" id="viewsCfg">查看</a>
+			<a onclick="openPage('filters', this, 'green')" id="filtersCfg">过滤</a>
+			<a onclick="openPage('behaviour', this, 'orange')" id="behaviourCfg">行为</a>
+			<a onclick="openPage('display', this, 'blue')" id="displayCfg">显示</a>
+			<a onclick="openPage('albumArt', this, 'red')" id="albumArtCfg">专辑封面</a>
+			<a onclick="openPage('custom', this, 'green')" id="customCfg">自定义</a>
+			<a onclick="openPage('advanced', this, 'orange')" id="advancedCfg">高级</a>
+		</div>
+<div id="mainMargin">
+		<div style="clear:both;"></div>
+		<div id='views' class="tabcontent">
+			<span class="alignLeftH">名称</span>
+			<span class="alignRightH">模版</span>
+			<div style="clear:both;"></div>
+			<div id="view"></div>
+			<div class="info1">
+选定的项目将显示在菜单中。
+		</div>
+		<p "><a href="https://wiki.hydrogenaud.io/index.php?title=Foobar2000:Title_Formatting_Reference" target=\"_blank\">标题格式参考</a></p>
+		<button id="syntax_button" name="syntax_button" style="margin-left:0px;" type="button">新的分面 / 多面板模式 / 扩展语法帮助</button><div id="syntax_help" style="display: none;">
+<div class="info5"><b>新的分面 / 多面板模式 </b></div>
+			<div class="info5">
+每个面板可以包含树型、专辑封面或切片视图。面板不必是连续的。本示例描述了如何设置具有 3 个切片面板的新切片模式：流派、艺术家和专辑。</div>
+<div class="info5"><i>设置</i><ul><li>将 3 个蜘蛛猴面板插入到布局中，并为每个面板添加 Library Tree</li><li>对于每个面板，使用快速设置并选择 “切片”</li><li>将第一个面板的查看方式设置为流派，第二个面板设置为艺术家，第三个面板设置为专辑*</li><li>对于每个面板，按 Shift + Windows 键，选择 “配置...” 并在顶部 “面板(Panel)” 将第一个面板的面板名称设置为流派，第二个设置为艺术家，第三个设置为专辑</li><li><input class="input99" value="对于第二个面板，设置菜单 > 来源为面板，然后选择 “选择来源面板” 并输入流派（区分大小写）"/></li><li><input class="input99" value="对于第三个面板，将来源设置为面板，然后选择 “选择来源面板” 并输入流派|艺术家（区分大小写）"/></li></ul><i>可选</i><ul><li>可以选择更改第二个面板以显示封面，并将类型设置为艺术家（圆形样式图像）</li><li>可以选择更改第三个面板以显示封面，并将类型设置为封面</li><li>如果需要，调整专辑封面 > 分组级别</li><li>可以选择隐藏第二、第三面板的顶部栏搜索、过滤按钮和设置按钮</li><li>建议启用：退出时和搜索前记住状态；过滤器 - 自动滚动</li></ul>
+* 默认的专辑查看方式作为树型视图效果更好；对于切片视图，以下内容更好：<input class="input99" value="查看按专辑 // $if2(%album%,εXtra)|%album artist%|[[%discnumber%.]%tracknumber%. ][%track artist% - ]%title%"/>
+
+<b><i>额外的查看方式模版，兼容切片和树型样式</i></b>
+查看按：
+<input class="input99" value="音轨 // [%tracknumber%. ]%title%"/>
+<input class="input99" value="标题 // %title%"/>
+<input class="input99" value="文件夹 // $directory(%path%)"/>
+<input class="input99" value="文件名 // %filename%"/>
+<input class="input99" value="文件名，包括后缀名 // %filename_ext%"/>
+<input class="input99" value="艺术家首字母 // $cut(%artist%,1)|%artist%|$if2(%album%,εXtra)|[[%discnumber%.]%tracknumber%. ][%track artist% - ]%title%"/>
+<input class="input99" value="专辑艺术家首字母 // $cut(%album artist%,1)|%album artist%|$if2(%album%,εXtra)|[[%discnumber%.]%tracknumber%. ][%track artist% - ]%title%"/>
+<input class="input99" value="日期 - 专辑 // [$year(%date%) - ]$if2(%album%,εXtra)|%album artist%|[[%discnumber%.]%tracknumber%. ][%track artist% - ]%title%"/>
+
+<b><i>排序</i></b>
+切片通过使用普通树型查看方式的顶层来工作。查看方式的其余部分用于排序，这应该足够了。如果需要额外排序，可以使用播放列表排序，例如，以下之一。
+
+<input class="input99" value="%album artist%  $if2(%album%,εXtra)  [[%discnumber%.]%tracknumber%. ][%track artist% - ]%title%"/><input class="input99" value="%artist%  $if2(%album%,εXtra)  [[%discnumber%.]%tracknumber%. ][%track artist% - ]%title%">
+
+</div>
+<div class="info5"><b>扩展语法</b></div>
+<table id="syntax" class="table98">
+<br>
+<colgroup>
+	<col span="1" style="width:20%">
+</colgroup>
+</table>
+<div class="info8" style="color:#0066cc;"><b>$colour{正常,悬停,选定}</b></div>
+<div class="info7">
+为一行文本的不同内容设置不同的颜色。所有颜色都是可选的：任何未定义的颜色都设置为默认颜色。颜色在 $colour 代码之后应用，直到遇到另一个 $colour 代码或到达一个分隔符（查看模版中为 | 或 &#166）或到达一个重置代码：$colour{}
+
+正常、悬停和选定可以是 r-g-b 或 亮、暗指标，例如：
+$colour{r-g-b,r-g-b,r-g-b} 或 $colour{-,++,+++}
+</div>
+<div class="info7" style="color:#0066cc;"><i>悬停效果要求启用 "悬停效果（前景）：高亮文本" （在 “显示” 选项页设置）。</i></div>
+<div class="info7">
+<i>亮 & 暗指标：</i>
+- 暗文本
+-- 较暗文本
+--- 最暗文本
++ 亮文本
+++ 较亮文本
++++ 最亮文本
+
+格式，r-g-b 和 -/+ 样式，可以在同一个 $colour{} 函数中混合。
+
+<i>语法示例：</i>
+$colour{} 重置所有颜色为默认值。
+$colour{255-0-0} 设置普通文本颜色为红色；设置悬停和选定文本颜色为默认值，因为未定义。
+$colour{,,+++} 设置选定文本颜色为最亮；设置正常和悬停文本颜色为默认值，因为未定义。
+$colour{0-255-0,++} 设置正常文本颜色为绿色，悬停文本颜色为较亮。设置选定文本颜色为默认值，因为未定义。
+$colour{255-0-0,0-255-0,0-255-255} 设置正常、悬停和选定文本颜色分别为红色、绿色和青色。
+
+<i>模版示例：</i></div>
+<div class="input_cnt3"><input class="input99" style="font:0.87em Segoe UI;" value="$colour{-}%artist%[$colour{+} - %album%][$colour{96-127-127} - '['%date%']'][$colour{111-132-138} - %genre%]$colour{--}|[$colour{--,++,0-192-192}%tracknumber%. ]$colour{-,++,0-228-228}%title%"/></div>
+<div class="info7">
+项目计数是一种特殊情况。它们不构成查看模版的一部分。
+右对齐：单独绘制；不受 $colour 代码控制；已经变暗。
+文本结尾：由 $colour 代码设置。如果需要，在行尾使用 $colour{} 来重置或设置为不同颜色（在上面的示例中使用了 $colour{--}）。
+</div>
+<div class="info7" style="color:#0066cc;"><b>字符串限制</b></div>
+<div class="info7">
+$nodisplay & $colour 在字符串操作函数中通常是不安全的，这些函数会删除字符串的一部分或按位置插入子字符串。相反，它们应该放在字符串函数之前，例如：
+
+使用 $colour{255-0-0}$substr(str,from,to)。不要使用 $substr($colour{255-0-0}str,from,to)。
+使用 $colour{0-255-0}$swapbranchprefix{%&ltartist&gt%}。不要使用 $swapbranchprefix{$colour{0-255-0}%&ltartist&gt%}。
+
+</div>
+		</div>
+		</div>
+		<div style="clear:both;"></div>
+		<div id='filters' class="tabcontent">
+			<span class="alignLeftH">名称</span>
+			<span class="alignRightH">查询</span>
+			<div style="clear:both;"></div>
+			<div id="filter"></div>
+			<div class="info1">
+选定的项目将显示在菜单中。
+		</div>
+		</div>
+		<div style="clear:both;"></div>
+		<div id="btn_cnt_right" class="btn_cnt">
+			<button id="btn_ok" >确定</button>
+			<button class="button_apply" id="btn_apply">应用</button>
+			<button id="btn_cancel">取消</button>
+		</div>
+		<div id="btn_cnt_left" class="btn_cnt">
+			<button id="btn_reset" >重置全部</button>
+			<button id="btn_resetPage" >重置页面</button>
+		</div>
+		<div id="btn_cnt_center" class="btn_cnt">
+			<button id="btn_add" >新建</button>
+			<button id="btn_up" >上移</button>
+			<button id="btn_down" >下移</button>
+			<button id="btn_delete" >删除</button>
+		</div>
+
+		<div id="behaviour" class="tabcontent">
+		<div class="row">
+
+			<div class="column38" style="margin-right:1%;">
+				<div class="div_text1">模式</div>
+				<div id="actionType"></div>
+				<div style="display:inline-block; padding-top:0.7em;"><a id="mode_help" href="#" onclick="showModeHelp();return false;">模式帮助</a></div>
+				<div id="mode_text" style="display:none; padding:0.7em; background-color:Gainsboro;">
+<div class="info4600"><b>默认</b></div>
+<div class="info4">&#x2022; 选择选项</div>
+<div class="info4600"><b>浏览</b></div>
+<div class="info4">
+&#x2022; 播放列表继续播放
+&#x2022; 便于浏览曲目列表，例如在专辑封面或分面模式
+&#x2022; 播放跟随光标关闭且播放列表可见时效果最佳
+&#x2022; 双击状态栏等显示正在播放的播放列表
+&#x2022; 如果启用，预设以红色显示</div>
+<div class="info4600"><b>播放</b></div>
+<div class="info4">&#x2022; 从播放队列播放
+&#x2022; 不涉及播放列表
+&#x2022; 可选显示队列和当前播放指示器
+&#x2022; 最大队列大小：256（foobar2000 限制）
+&#x2022; 如果启用，预设以红色显示</div>
+</div>
+				<span class="info5600">单击:</span>
+				<span class="dropdown" style="margin-top:0"><a id="click_dropdown" class="dropbtn" href="#" onclick="toggle('click');"></a>
+				<span id="click" class="dropdown-content"></span>
+				</span>
+				<div style="clear:both;"></div>
+				<span class="info5600"><b>双击：</b></span>
+				<span class="dropdown" style="margin-top:0;"><a id="dblClick_dropdown" class="dropbtn" href="#" onclick="toggle('dblClick');"></a>
+				<span id="dblClick" class="dropdown-content"></span>
+				</span>
+				<span class="info5600">中键-点击:</span>
+				<span class="dropdown" style="margin-top:0"><a id="mbtnClick_dropdown" class="dropbtn" href="#" onclick="toggle('mbtnClick');"></a>
+				<span id="mbtnClick" class="dropdown-content"></span>
+				</span>
+				<span class="info5600">Alt+点击:</span>
+				<span class="dropdown" style="margin-top:0"><a id="altClick_dropdown" class="dropbtn" href="#" onclick="toggle('altClick');"></a>
+				<span id="altClick" class="dropdown-content"></span>
+				</span>
+				<div style="clear:both;"></div>
+				<span class="info5600">按键:</span>
+				<span class="dropdown" style="margin-top:0"><a id="keystroke_dropdown" class="dropbtn" href="#" onclick="toggle('keystroke');"></a>
+				<span id="keystroke" class="dropdown-content"></span>
+				</span>
+				<div class="div_text6">滚动</div>
+				<span class="info3">滚动条:</span>
+				<span style="margin:0 0 0.31em;" class="dropdown"><a id="sbarShow_dropdown" class="dropbtn" href="#" onclick="toggle('sbarShow');"></a>
+				<span id="sbarShow" class="dropdown-content"></span>
+				</span>
+				<span style="margin:0 0 0.31em;" class="dropdown"><a id="sbarType_dropdown" class="dropbtn" href="#" onclick="toggle('sbarType');"></a>
+				<span id="sbarType" class="dropdown-content"></span>
+				</span>
+				<span style="margin:0 0 0.31em;" id="sbar_col_dropdown" class="dropdown"><a id="sbarCol_dropdown" class="dropbtn" href="#" onclick="toggle('sbarCol');"></a>
+				<span id="sbarCol" class="dropdown-content"></span>
+				</span>
+				<span style="margin:0 0 0.31em;" id="sbar_icon_dropdown" class="dropdown"><a id="sbarIcon_dropdown" class="dropbtn" href="#" onclick="toggle('sbarIcon');"></a>
+				<span id="sbarIcon" class="dropdown-content"></span>
+				</span>
+				<div id="scrolling"></div>
+			</div>
+
+			<div class="column29">
+				<div class="div_text1">搜索</div>
+				<span class="dropdown"><a id="search_dropdown" class="dropbtn" href="#" onclick="toggle('search');"></a>
+				<span id="search" class="dropdown-content"></span>
+				</span>
+				<div id="searchEnter" style="padding-top:0.5em;"></div>
+				<div class="div_text2">“树”列表</div>
+				<div id="expand"></div>
+				<div id="expandLimit"></div>
+				<div class="div_text2">记住状态</div>
+				<div id="remember"></div>
+				<div class="div_text6">选择</div>
+				<div id="selection"></div>
+				<div class="div_text1">跟随选择</div>
+				<div id="followCurrent"></div>
+				<div class="info9"><a id="setSize" style="text-decoration:none;" href="#" onclick="setWindowSize();return false;">单击以重置窗口大小</a></div>
+			</div>
+
+			<div class="column32">
+				<div class="div_text1">播放列表</div>
+				<div id="playlist"></div>
+				<div class="info4">使用 %view_name% 可获取当前查看模式名称</div>
+				<div id="playlistSort"></div>
+				<div class="div_text4"><i>目标播放列表：</i></div>
+				<div id="targetPlaylist"></div>
+			</div>
+		</div>
+		</div>
+
+		<div id="display" class="tabcontent">
+		<div class="row">
+
+			<div class="column33">
+				<div class="div_text1">顶部栏</b></div>
+				<div id="bar"></div>
+				<div style="padding-right:10%;" class="info4"><i>*如果隐藏，请右键单击过滤器或图标。如果全部隐藏，请使用上下文菜单。</i></div>
+				<div class="div_text2">主题</div>
+				<span class="dropdown"><a id="theme_dropdown" class="dropbtn" href="#" onclick="toggle('themeBg');"></a>
+				<span id="themeBg" class="dropdown-content"></span>
+				</span>
+				<div id="themeStyle" style="padding-top:0.5em;"></div>
+				<div id="coverFormat"></div>
+				<div id="panelStyle"></div>
+				<div class="div_text2">统计</div>
+				<div id="labelStatistics"></div>
+				<div class="info5"><i>有些标题格式可以在下面设置</i></div>
+				<div id="statistics2"></div>
+			</div>
+
+			<div class="column33">
+				<div class="div_text1">根节点</div>
+				<span class="dropdown"><a id="root_dropdown" class="dropbtn" href="#" onclick="toggle('root');"></a>
+				<span id="root" class="dropdown-content"></span>
+				</span>
+				<div id="rootStyle" style="padding-top:0.5em;"></div>
+				<div class="div_text2">节点样式</div>
+				<span class="dropdown"><a id="node_dropdown" class="dropbtn" href="#" onclick="toggle('node');"></a>
+				<span id="node" class="dropdown-content"></span>
+				</span>
+				<div id="nodeLines" style="padding-top:0.5em;"></div>
+				<div class="div_text2">项目计数</div>
+				<span class="dropdown"><a id="itemCounts_dropdown" class="dropbtn" href="#" onclick="toggle('itemCounts');"></a>
+				<span id="itemCounts" class="dropdown-content"></span>
+				</span>
+				<div id="countsRight" style="padding-top:0.5em;"></div>
+				<div class="div_text2">线 样式</div>
+				<div id="lines"></div>
+			</div>
+
+			<div class="column33">
+				<div class="div_text1">悬停效果（背景）</div>
+				<span class="dropdown"><a id="showHl_dropdown" class="dropbtn" href="#" onclick="toggle('showHl');"></a>
+				<span id="showHl" class="dropdown-content"></span>
+				</span>
+				<div id="frameStyle" style="padding-top:0.5em;"></div>
+				<div class="div_text2">悬停效果（前景）</div>
+				<div id="showH2"></div>
+				<div class="div_text2">显示</div>
+				<div id="show"></div>
+				<div class="div_text2">布局度量</div>
+				<div class="row">
+				<div class="column38">
+				<div id="metrics1"></div>
+				</div>
+				<div class="column61">
+				<div id="metrics2"></div>
+				</div>
+				</div>
+				<div id="metrics3"></div>
+			</div>
+		</div>
+		</div>
+
+		<div id="albumArt" class="tabcontent">
+		<div class="row">
+
+			<div class="column25">
+				<div class="div_text1">标签</div>
+				<div id="labels"></div>
+				<div id="flip"></div>
+				<div class="div_text2">文本对齐</div>
+				<span class="dropdown"><a id="textAlign_dropdown" class="dropbtn" href="#" onclick="toggle('textAlign');"></a>
+				<span id="textAlign" class="dropdown-content"></span>
+				</span>
+				<div class="div_text2">角标</div>
+				<span class="dropdown"><a id="overlay_dropdown" class="dropbtn" href="#" onclick="toggle('overlay');"></a>
+				<span id="overlay" class="dropdown-content"></span>
+				</span>
+				<div class="div_text2">磁盘缓存</div>
+				<div id="useCache"></div>
+				<button id="help_button" name="help_button" style="margin:2em 0 0;" type="button">显示专辑封面帮助</button>
+			</div>
+
+			<div class="column33">
+				<div class="div_text3">样式</div>
+				<table id="imageFormat" class="table77">
+					<colgroup>
+						<col span="5" style="width:15%">
+					</colgroup>
+				</table>
+				<div class="row">
+				<div class="column50">
+				<div class="div_text7">封面间距</div>
+				<div id="gap"></div>
+				<div style="padding:1.01em 0 0.31em;" class="div_text2">流动封面模式</div>
+				<div id="flowMode"></div>
+				<div style="padding:1.01em 0 0.31em;" class="div_text2">封面阴影</div>
+				<div id="dropShadow"></div>
+				</div>
+				<div class="column50">
+				<div id="thumbNailSize" class="div_text7">封面大小</div>
+				<span class="dropdown"><a id="thumbSize_dropdown" class="dropbtn" href="#" onclick="toggle('thumbSize');"></a>
+				<span id="thumbSize" class="dropdown-content"></span>
+				</span>
+				<div class="div_text2">查看模式</div>
+				<div id="sameAsTree"></div>
+			</div>
+			</div>
+				<div class="div_text2">索引</div>
+				<div id="indexLetter"></div>
+			</div>
+
+			<div class="column41">
+				<div class="div_text1">默认图片</div>
+				<span style="margin:0 0 0.31em;" class="dropdown"><a id="rootStub_dropdown" class="dropbtnLight" href="#" onclick="toggle('rootStub');"></a>
+				<span id="rootStub" style="font:0.85em Segoe UI;" class="dropdown-content"></span>
+				</span>
+				<span style="margin:1em 0 0.31em 0;" class="dropdown"><a id="noCoverStub_dropdown" class="dropbtnLight" href="#" onclick="toggle('noCoverStub');"></a>
+				<span id="noCoverStub" style="font:0.85em Segoe UI;" class="dropdown-content"></span>
+				</span>
+				<span style="margin:1em 0 0.31em 0;" class="dropdown"><a id="noArtistStub_dropdown" class="dropbtnLight" href="#" onclick="toggle('noArtistStub');"></a>
+				<span id="noArtistStub" style="font:0.85em Segoe UI;" class="dropdown-content"></span>
+				</span>
+				<div class="info5"><i>单击下拉项目进行完整预览（在面板中显示）。</i></div>
+			</div>
+		</div>
+			<div id="help_text" style="display: none;">
+			<div class="info5"><b>缓存</b></div>
+			<div class="info5">
+启用磁盘缓存以获得最佳性能。它包含调整过的图片，便于更快地加载，并在图片最初加载时建立。当缓存完全建成后，将达到最佳性能。如果获得了新的图片或更换了图片，可以通过刷新上下文菜单项来刷新缓存副本。
+
+可以选择在后台预加载缓存的图片。预加载在初始化后不久完成。在此之后，根据可用内存，图片应始终在滚动时立即显示。</div>
+			<div class="info5"><b>图片和文本大小</b></div><div class="info5"><ul><li>图片大小：按住 Ctrl+Alt+<i>Shift</i> 并滚动鼠标滚轮</li><li>文本和图图片大小：按住 Ctrl+Alt 并滚动鼠标滚轮</li><li>列表视图：设置标签右侧并根据需要缩小图片大小（快速设置使用小尺寸）</li><li>流动封面模式在单列或单行中运行（标签右侧和尺寸选项不可用）</li></ul></div>
+			<div class="info5"><b>图片来源</b></div>
+			<div class="info5">专辑封面从 “参数选项>显示” 中定义的文件来源和 “内嵌封面” 加载。默认图片设置在上面。
+艺术家图片：如果使用简介(biography)来获取照片，可以输入以下模版。要获取...*你的文件路径*...，请使用 简介(biography) > 来源(sources) > 打开文件位置(open file location) > 图片(image)。从 Windows 资源管理器地址栏中复制所需的部分。</div>
+			<div id="photoPath"></div>
+			<div class="info5"><b>查看</b></div>
+			<div class="info5">可以使用任何查看方式。根据设定的类型（封面、艺术家等），加载的图片是 <i>该组中第一个项目的图片</i>。查看方式模版以类似 <i>%artist%|%album%... 或 %album artist%|%album%...</i> 开始也可以。始终使用完整的模版，以便曲目等正确排序。默认情况下，分组的级别数是自动确定的。“树”型视图和专辑封面视图使用相同的查看方式，使得在两者之间的切换更加直接。由于在内存中只保留一个媒体库的副本，因此也避免了媒体库的重新加载。</div>
+			<div class="info5"><b>跟随选择</b></div>
+			<div class="info5">如果启用，将使用 “文件>参数选项>显示>选择查看器” 设置。</div>
+			<div class="info5"><b>仅“树”模式</b></div>
+			<div class="info5">在“树”视图时，关闭 “面板设置>显示>显示>专辑封面选项”。专辑封面加载、磁盘缓存以及专辑封面标签页和菜单选项被禁用。重新打开该选项以允许专辑封面模式。</div>
+		</div>
+	</div>
+
+		<div id="custom" class="tabcontent">
+		<div class="row">
+			<div class="div_text1">颜色和字体</div>
+			<div class="info5">
+默认情况下使用用户界面或主题设置。如果需要，启用和配置自定义项目。
+Ctrl+Alt+滚轮 可用于更改大多数项目的大小（专辑封面另外需要 Shift 键）[重置缩放：菜单>刷新]。</div>
+			<div class="column50">
+				<div class="info2"><b>字体</b></div>
+				<div class="info5" style="margin-left:8.5%">名称，大小，字形(0-4)</div>
+				<div id="fonts"></div>
+				<div class="info5" style="margin-left:8.5%">名称，字形(0-4)</div>
+				<div id="albumArtFonts"></div>
+				<div class="info6"><b>颜色 (R,G,B)：</b></div>
+				<div id="colours1"></div>
+				<p "><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Colors/Color_picker_tool#ColorPicker_tool" target=\"_blank\">颜色选择器</a></p>
+				<div class="info3">
+将使用选定的颜色和字体。
+字体样式代码：0 常规、1 粗体、2 斜体、3 粗斜体、4 下划线
+		</div>
+			</div>
+
+			<div class="column50">
+				<div class="info6"><b>颜色 (R,G,B 或 R,G,B,A)：</b></div>
+				<div id="colours2"></div>
+				<div class="info1">
+颜色：灵活输入，例如 255,0,0 或 0-255-0 或 rgba(255,0,0,64)
+透明度： 0-255 或 0-1 范围内
+透明：主背景不适用；可以使用透明填充
+				</div>
+			</div>
+
+		</div>
+		</div>
+
+		<div id="advanced" class="tabcontent">
+		<div class="row">
+			<div class="column50">
+				<div class="div_text1">滚动</div>
+				<div id="cusScroll"></div>
+				<div class="div_text1">滚动条</div>
+				<div id="scrollbar"></div>
+				<div class="info5" style="padding-right:20%;"><i>在 “面板设置>行为>滚动>箭头” 下选择自定义滚动条图标（如果设置了 Windows 滚动条，则不适用）。在 “面板设置>显示>节点样式” 下设置自定义节点图标。确保字体支持图标。</i></div>
+			</div>
+
+			<div class="column50">
+				<div class="div_text1">节点</div>
+				<div id="cusNode"></div>
+				<div class="info5" style="padding-right:10%;"><i>Windows 节点不支持颜色或悬停效果。</i></div>
+				<div class="div_text1">主题模糊</div>
+				<div id="themeBlur"></div>
+				<div class="div_text1">媒体库</div>
+				<div id="load"></div>
+				<div id="prefixes"></div>
+				<div class="div_text1">根节点折叠时最小化</div>
+				<div id="mode"></div>
+				<div id="modeInput"></div>
+				<div class="info5"><i>需要在 Library Tree 的上方或下方有一个面板。不适用于 面板栈分离器 或 根节点与子节点同列显示。</i></div>
+		</div>
+
+		</div>
+		</div>
+	</div>
+	<div id="div" style="height:0; width:0;outline:none; border:none; padding:none; margin:none; box-sizing:content-box;"></div>
+		<script>
+			var em, i = 0, is_closed_manually = false, j = 0, height, left, top, window_h, window_w;
+
+			function getValue(id) {
+				var div = document.getElementById(id);
+				div.style.height = '1em';
+				return (em = Math.max(div.offsetHeight, 13.6));
+			}
+			getValue('div');
+
+			function setWindowSize() {
+				window_w = cur.def_w * em || screen.width * 0.67;
+				window_h = cur.def_h * em || screen.height * 0.85;
+				window_w = Math.min(window_w, screen.width * 0.67);
+				window_h = Math.min(window_h, screen.height * 0.85);
+				left = (screen.width - window_w) / 2;
+				top = (screen.height - window_h) / 2;
+				window.resizeTo(window_w, window_h);
+				window.moveTo(left, top);
+				height = document.documentElement.clientHeight || document.body.clientHeight;
+			}
+
+			function openPage(pageName,elmnt,color) {
+				cur.page = pageName;
+				var i, tabcontent, tablinks;
+				tabcontent = document.querySelectorAll(".tabcontent");
+				for (i = 0; i < tabcontent.length; i++) {
+					tabcontent[i].style.display = "none";
+				}
+				tablinks = document.getElementsByTagName("a");
+				for (i = 0; i < tablinks.length; i++) {
+					tablinks[i].style.backgroundColor = "";
+				}
+				document.getElementById(pageName).style.display = "block";
+				elmnt.style.backgroundColor = color;
+				document.getElementById(pageName).style.height = height - window.tablink.offsetHeight - window.btn_cnt_right.offsetHeight;
+				document.getElementById(pageName).style.overflow = "auto";
+				var btns = ["btn_add", "btn_up", "btn_down", "btn_delete"];
+				for (i = 0; i < btns.length; i++) {
+					document.getElementById(btns[i]).style.display = pageName == 'views' || pageName == 'filters' ? "inline-block" : "none";
+				}
+				document.getElementById("btn_ok").focus();
+			}
+
+			document.getElementsByTagName("BODY")[0].onresize = function() {
+				height = document.documentElement.clientHeight || document.body.clientHeight;
+				window_w = (document.documentElement.clientWidth || document.body.clientWidth) + widthOffset;
+				window_h = height + heightOffset;
+				cur.w = Math.round(window_w / em);
+				cur.h = Math.round(window_h / em);
+				checkWindowDefaultSize();
+			}
+
+			function checkWindowDefaultSize() {
+				var def_w = cur.def_w * em || screen.width * 0.67;
+				var def_h = cur.def_h * em || screen.height * 0.85;
+				def_w = Math.min(def_w, screen.width * 0.67);
+				def_h = Math.min(def_h, screen.height * 0.85);
+				window.setSize.disabled = window_w == def_w && window_h == def_h;
+			}
+
+			function close_window() {
+				is_closed_manually = true;
+				window.open('', '_self', '');
+				window.close();
+			}
+
+			function remove(n) {
+				n.parentNode && n.parentNode.removeChild(n);
+			}
+
+			function moveUp(element) {
+				if (element.previousSibling)
+					element.parentNode.insertBefore(element, element.previousSibling);
+			}
+			function moveDown(element) {
+				if (element.nextSibling && element.nextSibling.id != "view_cnt_folderView" && element.nextSibling.id != "filter_cnt_menuName")
+					element.parentNode.insertBefore(element.nextSibling, element);
+			}
+
+			function set_btn_add_state() {
+				switch (cur.page) {
+					case 'views':
+						var ln = document.getElementById("view").querySelectorAll("[id^='view_cnt']").length
+						document.getElementById("btn_add").disabled = ln > 98 ? true : false;
+						break;
+					case 'filters':
+						var ln = document.getElementById("filter").querySelectorAll("[id^='filter_cnt']").length
+						document.getElementById("btn_add").disabled = ln > 98 ? true : false;
+						break;
+				}
+			}
+
+			function set_btn_apply_state() {
+				getValues();
+
+				var id = document.activeElement.id;
+				if (/scrollbar_container6/.test(id)) {
+					window.scrollbar_container5.style.fontFamily = window.scrollbar_container6.value;
+				}
+
+				var needCustomCol = /colour_container/.test(id);
+				if (needCustomCol) setCustomColours('value');
+				document.getElementById("btn_apply").disabled = JSON.stringify(cfg) != parsed_args[0] || JSON.stringify(libSet) != parsed_args[1] ? false : true;
+			}
+
+			function set_btn_del_state() {
+				switch (cur.page) {
+					case 'views':
+						var ln = document.getElementById("view").querySelectorAll("[id^='view_cnt']").length
+						document.getElementById("btn_delete").disabled = ix.view != -1 && ln > 1 ? false : true;
+						break;
+					case 'filters':
+						var ln = document.getElementById("filter").querySelectorAll("[id^='filter_cnt']").length
+						document.getElementById("btn_delete").disabled = ix.filter != -1 && ln > 1 ? false : true;
+						break;
+				}
+			}
+
+			function set_btn_dn_state() {
+				switch (cur.page) {
+					case 'views':
+						var element = document.getElementById("view_cnt" + ix.view);
+						document.getElementById("btn_down").disabled = ix.view == -1 || element.nextSibling && element.nextSibling.id == "view_cnt_folderView" ? true : false;
+						break;
+					case 'filters':
+						var element = document.getElementById("filter_cnt" + ix.filter);
+						document.getElementById("btn_down").disabled = ix.filter == -1 || element.nextSibling && element.nextSibling.id == "filter_cnt_menuName" ? true : false;
+						break;
+				}
+			}
+
+			function set_btn_up_state() {
+				switch (cur.page) {
+					case 'views':
+						var element = document.getElementById("view_cnt" + ix.view);
+						document.getElementById("btn_up").disabled = ix.view == -1 || !element || !element.previousSibling ? true : false;
+						break;
+					case 'filters':
+						var element = document.getElementById("filter_cnt" + ix.filter);
+						document.getElementById("btn_up").disabled = ix.filter == -1 || !element || !element.previousSibling ? true : false;
+						break;
+				}
+			}
+
+			function assign(c, t) {
+				c = c.replace(/[^0-9.,-]/g, '').replace(/-/g, ',').split(',');
+				var cc = ''; if (c.length != 3 && c.length != 4) return [255, 255, 255];
+				for (i = 0; i < c.length; i++) {
+					c[i] = parseFloat(c[i]);
+					if (i < 3) c[i] = clamp(Math.round(c[i]), 0, 255);
+					else if (i == 3) {
+						if (c[i] <= 1) c[i] = Math.round(255 * c[i]);
+						else c[i] = clamp(Math.round(c[i]), 0, 255);
+					}
+				}
+				switch (t) {
+					case 0: cc = [c[0], c[1], c[2]]; break;
+					case 1: switch (c.length) {
+						case 3: cc = [c[0], c[1], c[2]]; break;
+						case 4: cc = RGBAtoRGB([c[0], c[1], c[2], c[3]], [255, 255, 255, 255]); break;
+					} break;}
+				return cc;
+			}
+
+			function clamp(num, min, max) {
+				num = num <= max ? num : max; num = num >= min ? num : min; return num;
+			}
+
+			function getSelCol(c) {
+				var cc = [], v = 1;
+				for (i = 0; i < c.length; i++) {
+					v = c[i] / 255;
+					cc.push(v <= 0.03928 ? v /= 12.92 : Math.pow(((v + 0.055 ) / 1.055), 2.4));
+				}
+				var L = 0.2126 * cc[0] + 0.7152 * cc[1] + 0.0722 * cc[2]; if (L > 0.31) return 'black'; else return 'white';
+			}
+
+			function RGBAtoRGB(c, bg) {
+				var r = c[0] / 255, g = c[1] / 255, b = c[2] / 255, a = c[3] / 255, bgr = bg[0] / 255, bgg = bg[1] / 255, bgb = bg[2] / 255; var nR = ((1 - a) * bgr) + (a * r), nG = ((1 - a) * bgg) + (a * g), nB = ((1 - a) * bgb) + (a * b); nR = clamp(Math.round(nR * 255), 0, 255); nG = clamp(Math.round(nG * 255), 0, 255); nB = clamp(Math.round(nB * 255), 0, 255); return [nR, nG, nB];
+			}
+
+			var callback;
+			var cbox_h = 15;
+			var cbox_w = 17;
+			var cfg = [];
+			var cur = {};
+			var ix = {filter: -1, view: -1}
+			var new_id = 100;
+			var parsed_args;
+			var props_callback
+			var libSet = {};
+			var sizes = [];
+
+			try {
+				parsed_args = window.external.dialogArguments.toArray();
+			}
+			catch(e) {}
+
+			if (parsed_args) {
+				cur = JSON.parse(parsed_args[2]);
+				document.title = '曲库 ' + cur.version + ': 面板设置';
+				cfg = JSON.parse(parsed_args[0]);
+				libSet = JSON.parse(parsed_args[1]);
+				cbox_h = Math.round(Math.max(em, 13));
+				cbox_w = cbox_h + 2;
+				var cbox = "width:" + cbox_w + "px; height:" + cbox_h + "px;"
+				window_w = cur.w * em || screen.width * 0.67;
+				window_h = cur.h * em || screen.height * 0.85;
+				if (cur.w == cur.def_w) window_w = Math.min(window_w, screen.width * 0.67);
+				if (cur.h == cur.def_h) window_h = Math.min(window_h, screen.height * 0.85);
+				left = (screen.width - window_w) / 2;
+				top = (screen.height - window_h) / 2;
+				window.resizeTo(window_w, window_h);
+				window.moveTo(left, top);
+				height = document.documentElement.clientHeight || document.body.clientHeight;
+				var heightOffset = window_h - height;
+				var widthOffset = window_w - (document.documentElement.clientWidth || document.body.clientWidth);
+				checkWindowDefaultSize();
+				document.getElementById(cur.page + 'Cfg').click();
+
+				var actionTypeLabels = ['默认', '浏览 (播放列表继续播放)', '播放 (不使用播放列表进行播放和管理)'];
+				var albumArtGapLabels = ['正常 (0 = 自动)', '紧凑'];
+				var albumArtLabels = ['无', '底部', '右侧', '叠加', '深色', '翻转'];
+				var albumArtOverlayLabels = ['无', '音轨计数', '年份'];
+				var textAlignLabels = ['左 (默认)', '中', '右'];
+				var altClickLabels = ['添加到默认播入列表', '添加到当前播放列表', '添加到播放队列 (alt 双击移除)'];
+				var barLabels = ['搜索', '过滤按钮', '设置按钮*'];
+				var clickLabels = libSet['actionMode_internal'].value == 1 ? ['发送到播放列表'] : libSet['actionMode_internal'].value == 2 ? ['选择'] : ['选择', '发送到播放列表t', '发送到播放列表并播放', '发送到播放列表并播放 [添加，如果正在播放]'];
+				var colourLabels = ['文本', '高亮文本', '选定文本', '正在播放项高亮文本 / 侧标', '搜索文本', '按钮', '背景', '突出背景', '选定背景', '悬停边框', '选定边框', '项目计数', '折叠节点', '展开节点', '悬停节点', '节点线', '分隔符', '侧标', '透明填充'];
+				var coverFormatLabels = ['封面自动填充', '封面不透明度 (%)'];
+				var cusNodeLabels = ['自定义展开|折叠图标', '自定义图标字体名称', '自定义图标填充 (+/-)', '方形节点：使用 Windows']
+				var cusScrollLabels = ['行数 (0 = 页面)', '最大平滑持续时间（毫秒）', '最大触摸持续时间（毫秒）', '触摸灵敏度 0-10'];
+				var dblClickLabels = libSet['actionMode_internal'].value == 1 ? ['发送到播放列表并播放'] : libSet['actionMode_internal'].value == 2 ? ['发送到播放队列并播放'] : ['发送到播放列表', '发送到播放列表并播放', '展开 / 折叠（“树”视图）', '发送到播放队列并播放'];
+				var diskCacheLabels = ['启用', '预加载缓存图片']
+				var followCurrentLabels = ['标准模式', '流动封面模式'];
+				var fontLabels = ['主要', '专辑封面第1行', '专辑封面第2行', '专辑封面分组持续时间行'];
+				var highLightLabels = ['无', '侧标', '突出', '边框', '始终指针（无手形形状）', '高亮节点', '高亮文本'];
+				var indexLetterLabels = ['拖动滚动条时显示', '字符数 (0 = 自动)', '自动检测前端年份（叠加以上数字）'];
+				var keystrokeLabels = ['选择', '发送到播放列表']
+				var itemCountsLabels = ['隐藏', '# 音轨', '# 子项', '右对齐（“树”视图）','显示持续时间'];
+				var metricsLabels = ['边距', '“树”缩进', '“树”视图行填充', '专辑封面视图行填充', '顶部/底部的边距（无顶部栏）', '侧标宽度（0 = 自动）'];
+				var mbtnClickLabels = libSet['actionMode_internal'].value == 2 ? ['添加到播放队列 (中键双击移除)'] : ['添加到默认播入列表', '添加到当前播放列表', '添加到播放队列 (中键双击移除)'];
+				var nodeLabels = ['方形', '箭头', '箭头浅色', '三角', '三角浅色', '加减', '自定义'];
+				var playlistLabels = ['默认', '改变时激活'];
+				var playlistSortLabels = ['播放列表的排序顺序（空 = 默认）'];
+				var rememberLabels = ['退出时', '所有视图', '搜索前'];
+				var rootLabels = ['隐藏', '全部音乐', '查看模式', '项目摘要', '与子节点同列显示（“树”）', '显示来源名称'];
+				var sbarColLabels = ['灰色', '融合'];
+				var sbarIconLabels = ['箭头', '三角', '自定义'];
+				var sbarShowLabels = ['隐藏', '自动', '显示'];
+				var sbarTypeLabels = ['默认', '样式', 'Windows'];
+				var scrollbarLabels = ['滑块宽度', '滑道宽度（0 = 自动）', '箭头宽度', '箭头填充 (+/-)', '滑块最小高度', '自定义图标', '自定义图标字体名称', '自定义图标偏移 (%)', '首选全高滚动条'];
+				var scrollLabels = ['使用 Windows 指标', '平滑滚动', '触摸控制'];
+				var selectionLabels = ['整行', '按 Enter 键或右键菜单发送到列表后自动播放'];
+				var searchLabels = ['仅搜索', '按 Enter 键将结果发送到播放列表','自动将结果发送到播放列表', '按 Enter 键开始搜索'];
+				var showLabels = ['条纹背景', '高亮正在播放项', '正在播放侧标记 (“树” / 文本)', '正在播放指示 (“树” / 文本)', '专辑封面选项', '分面查看', '音轨 (“树”)'];
+				var statisticsLabels = ['等级', '热门', '日期', '', '自动显示标签', '自动显示工具提示'];
+				var tfInput = ['媒体库查看'];
+				var targetPlaylistLabels = ['默认', '当前'];
+				var themeLabels = !libSet['themed_internal'].value ? ['用户界面', '深色', '融合', '浅色', '随机', '封面', '交换颜色', '面板来源: 使用收到的项目图像'] : ['N/A: central set', 'N/A: central set', 'N/A: central set', 'N/A: central set', 'N/A: central set', 'N/A: central set', 'N/A: central set', 'N/A: central set', 'N/A: central set', 'N/A: central set'];
+				var themeBlurLabels = ['自动填充', '级别 (%)', '不透明度 (%)', '%'];
+				var thumbNailGapLabels = ['缩略图间隙'];
+				var thumbnailSizeLabels = ['迷你', '小', '常规', '中', '大', 'XL', 'XXL', '最大'];
+				var treeLabels = ['自动折叠', '展开单个项目', '展开，如果音轨计数小于：'];
+				var loadLabels = ['自动同步媒体库变化', '删除或后移的前缀（| 分隔符）']
+				var modeLabels = ['最大高度', '最小高度', 'Limit menu expand: 10-6000'];
+
+				function setNodeLabels() {
+					nodeLabels[0] = !libSet['winNode_internal'].value ? '方形' : '方形 (Windows)';
+					if (libSet['nodeStyle_internal'].value == 0 || libSet['nodeStyle_internal'].value == 7) window.node_dropdown.innerHTML = nodeLabels[0];
+					window.nodeNo0.innerHTML = nodeLabels[0];
+				}
+
+				var input = {
+					behaviour: {
+						name: ['autoExpandLimit', 'libPlaylist', 'customSort'],
+						type: ['int', 'text', 'text']
+					},
+					display: {
+						name: ['covAlpha', 'tfRating', 'tfPopularity', 'tfDate', 'margin', 'treeIndent', 'verticalPad', 'verticalAlbumArtPad', 'marginTopBottom', 'sideMarkerWidth'],
+						type: ['float', 'text', 'text', 'text', 'int', 'int', 'int', 'int', 'int', 'int']
+
+					},
+					albumArt: {
+						name: ['thumbNailGapStnd', 'thumbNailGapCompact', 'albumArtLetterNo'],
+						type: ['int', 'int', 'int']
+					},
+					custom: {
+						name: ['custFont', 'custAlbumArtGrpFont', 'custAlbumArtLotFont', 'custAlbumArtDurFont', 'text', 'text_h', 'textSel', 'nowp', 'search', 'txt_box', 'bg', 'bg_h', 'bgSel', 'frame', 'bgSelframe', 'counts', 'icon_c', 'icon_e', 'icon_h', 'line', 's_line', 'sideMarker', 'bgTrans'],
+						type : ['text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text']
+					},
+					advanced: {
+						name: ['scrollStep', 'durationScroll', 'durationTouchFlick', 'flickDistance', 'sbarWidth', 'narrowSbarWidth', 'sbarArrowWidth', 'sbarPad', 'sbarGripHeight', 'arrowSymbol', 'butCustIconFont', 'sbarButPad', 'iconCustom', 'custIconFont', 'iconVerticalPad', 'blurTemp', 'blurAlpha','prefix', 'pn_h_max', 'pn_h_min', 'treeExpandLimit'],
+						type : ['float', 'float', 'float', 'float', 'float', 'float', 'float', 'float', 'float', 'text', 'text', 'float', 'text', 'text', 'float', 'float', 'float', 'text', 'int', 'int', 'int']
+					},
+					all: {}
+				}
+				input.all.name = input.behaviour.name.concat(input.display.name, input.albumArt.name, input.custom.name, input.advanced.name);
+				input.all.type = input.behaviour.type.concat(input.display.type, input.albumArt.type, input.custom.type, input.advanced.type);
+				var box = {
+					behaviour: ['sbarWinMetrics', 'smooth', 'touchControl', 'searchEnter', 'autoCollapse', 'treeAutoExpandSingle', 'treeAutoExpand', 'rememberTree', 'rememberView', 'rememberPreSearch', 'fullLineSelection', 'autoPlay', 'stndModeFollowSelection', 'flowModeFollowSelection', 'activateOnChange'],
+					display: ['searchShow', 'filterShow', 'settingsShow', 'swapCol', 'autoFill', 'recItemImage', 'labelStatistics', 'tooltipStatistics', 'inlineRoot', 'showSource', 'nodeLines', 'countsRight', 'colLineDark', 'frameImage', 'mousePointerOnly', 'highLightNode', 'highLightText', 'rowStripes', 'highLightNowplaying', 'nowPlayingSidemarker', 'nowPlayingIndicator', 'albumArtOptionsShow', 'facetView', 'showTracks'],
+					albumArt: ['albumArtFlipLabels', 'albumArtDiskCache', 'albumArtPreLoad', 'albumArtFlowMode', 'albumArtDropShadow', 'artTreeSameView', 'albumArtLetter', 'albumArtYearAuto'],
+					custom: ['custFontUse', 'custAlbumArtGrpFontUse', 'custAlbumArtLotFontUse', 'custAlbumArtDurFontUse', 'textUse', 'text_hUse', 'textSelUse', 'nowpUse', 'searchUse', 'txt_boxUse', 'bgUse', 'bg_hUse', 'bgSelUse', 'frameUse', 'bgSelframeUse', 'countsUse', 'icon_cUse', 'icon_eUse', 'icon_hUse', 'lineUse', 's_lineUse', 'sideMarkerUse', 'bgTransUse'],
+					advanced: ['sbarFullHeight', 'winNode', 'blurAutofill', 'libAutoSync', 'pn_h_auto']
+				}
+				box.all = box.behaviour.concat(box.display, box.albumArt, box.custom, box.advanced);
+
+				var radio = {
+					views: [],
+					filters: [],
+					behaviour: ['actionMode', 'sendToCur'],
+					display: ['itemShowStatistics'],
+					albumArt: ['albumArtLabelType', 'imgStyleFront', 'imgStyleBack', 'imgStyleDisc', 'imgStyleIcon', 'imgStyleArtist'],
+					custom: [],
+					advanced: []
+				}
+				radio.all = radio.behaviour.concat(radio.display, radio.albumArt);
+				callback = parsed_args[3];
+				props_callback = parsed_args[4];
+
+				function setSbarShow(n) {
+					window.sbarShow_dropdown.innerHTML = sbarShowLabels[n];
+					libSet['sbarShow_internal'].value = n;
+					window.sbarShow.style.display = 'none';
+				}
+
+				function setsbarType(n) {
+					window.sbarType_dropdown.innerHTML = sbarTypeLabels[n];
+					libSet['sbarType_internal'].value = n;
+					sbar_col_dropdown.style.display = n != 2 ? "inline-block" : "none";
+					sbar_icon_dropdown.style.display = n != 2 ? "inline-block" : "none";
+					window.sbarType.style.display = 'none';
+				}
+
+				function setSbarCol(n) {
+					window.sbarCol_dropdown.innerHTML = sbarColLabels[n];
+					libSet['sbarCol_internal'].value = n;
+					window.sbarCol.style.display = 'none';
+				}
+
+				function setSbarIcon(n) {
+					window.sbarIcon_dropdown.innerHTML = sbarIconLabels[n];
+					libSet['sbarButType_internal'].value = n;
+					window.sbarIcon.style.display = 'none';
+				}
+
+				function setRootImage(n) {
+					window.rootStub_dropdown.innerHTML = '<b>全部音乐:</b> <img src="'+rootStubLabels[n].path+'" width="'+ em +'" height="'+ em +'" class="stub"/> '+rootStubLabels[n].name+'<';
+					libSet.curRootImg_internal.value = n;
+					btn_apply.onclick();
+					window.rootStub.style.display = 'none';
+				}
+
+				function setNoArtistImage(n) {
+					window.noArtistStub_dropdown.innerHTML = '<b>无艺术家:</b> <img src="'+noArtistStubLabels[n].path+'" width="'+ em +'" height="'+ em +'" class="stub"/> '+noArtistStubLabels[n].name+'<';
+					libSet.curNoArtistImg_internal.value = n;
+					btn_apply.onclick();
+					window.noArtistStub.style.display = 'none';
+				}
+
+				function setNoCoverImage(n) {
+					window.noCoverStub_dropdown.innerHTML = '<b>无封面:</b> <img src="'+noCoverStubLabels[n].path+'" width="'+ em +'" height="'+ em +'" class="stub"/> '+noCoverStubLabels[n].name+'<';
+					libSet.curNoCoverImg_internal.value = n;
+					btn_apply.onclick();
+					window.noCoverStub.style.display = 'none';
+				}
+
+				function setRoot(n) {
+					window.root_dropdown.innerHTML = rootLabels[n];
+					libSet['rootNode_internal'].value = n;
+					window.root.style.display = 'none';
+				}
+
+				function setNode(n) {
+					setNodeLabels();
+					window.node_dropdown.innerHTML = nodeLabels[n];
+					libSet['nodeStyle_internal'].value = n;
+					window.node.style.display = 'none';
+				}
+
+				function setItemCounts(n) {
+					window.itemCounts_dropdown.innerHTML = itemCountsLabels[n];
+					libSet['nodeCounts_internal'].value = n;
+					window.itemCounts.style.display = 'none';
+				}
+
+				function setHoverBg(n) {
+					window.showHl_dropdown.innerHTML = highLightLabels[n];
+					libSet['highLightRow_internal'].value = n;
+					window.showHl.style.display = 'none';
+				}
+
+				function setOverlay(n) {
+					window.overlay_dropdown.innerHTML = albumArtOverlayLabels[n];
+					libSet['itemOverlayType_internal'].value = n;
+					window.overlay.style.display = 'none';
+				}
+
+				function setTextAlign(n) {
+					window.textAlign_dropdown.innerHTML = textAlignLabels[n];
+					libSet['albumArtTextAlign_internal'].value = n;
+					window.textAlign.style.display = 'none';
+				}
+
+				function setSearch(n) {
+					window.search_dropdown.innerHTML = searchLabels[n];
+					libSet['searchSend_internal'].value = n;
+					window.search.style.display = 'none';
+				}
+
+				function setTheme(n) {
+					window.theme_dropdown.innerHTML = themeLabels[n];
+					libSet['theme_internal'].value = n;
+					window.themeBg.style.display = 'none';
+				}
+
+				function setthumbSize(n) {
+					window.thumbSize_dropdown.innerHTML = thumbnailSizeLabels[n];
+					libSet['thumbNailSize_internal'].value = n;
+					window.thumbSize.style.display = 'none';
+				}
+
+				function setClickAction(n) {
+					window.click_dropdown.innerHTML = clickLabels[n];
+					libSet['clickAction_internal'].value = n;
+					window.click.style.display = 'none';
+				}
+
+				function setDblClickAction(n) {
+					window.dblClick_dropdown.innerHTML = dblClickLabels[n];
+					libSet['dblClickAction_internal'].value = n;
+					window.dblClick.style.display = 'none';
+				}
+
+				function setMbtnClickAction(n) {
+					window.mbtnClick_dropdown.innerHTML = mbtnClickLabels[n];
+					libSet['mbtnClickAction_internal'].value = n;
+					window.mbtnClick.style.display = 'none';
+				}
+
+				function setAltClickAction(n) {
+					window.altClick_dropdown.innerHTML = altClickLabels[n];
+					libSet['altClickAction_internal'].value = n;
+					window.altClick.style.display = 'none';
+				}
+
+				function setKeyAction(n) {
+					window.keystroke_dropdown.innerHTML = keystrokeLabels[n];
+					libSet['keyAction_internal'].value = n;
+					window.keystroke.style.display = 'none';
+				}
+
+				var imgTable = ['imgStyleFront', 'imgStyleBack', 'imgStyleDisc', 'imgStyleIcon', 'imgStyleArtist'];
+				var menuTable = ['buttonCol', 'searchCol', 'searchLnCol', 'nodeLineCol'];
+				function getTableData(id) {
+					var cells = [];
+					var headings = [];
+					var columnCount = 0;
+					switch (id) {
+						case 'imageFormat':
+							var headers = ['封面', '封底', '碟片', '图标', '艺术家', ''];
+							cells.push(headers);
+							var radioLabels = ['常规', '自动填充', '圆形'];
+							var items = [];
+							for (j = 0; j < 3; j++) {
+								items[j] = [];
+								for (i = 0; i < imgTable.length; i++) {
+									var n = imgTable[i];
+									var id = imgTable[i] + j;
+									items[j].push('<input id="'+id+'" name="'+n+'" style="'+cbox+'" type="radio" />');
+									if (i == 4) {
+										items[j].push('<div style="padding-left:0.46em; text-align:left">'+radioLabels[j]+'</div>');
+										cells.push(items[j]);
+									}
+								}
+							}
+							columnCount = 6;
+						break;
+						case 'syntax':
+										var headers = ['语法', '用于', '解释'];
+							cells.push(headers);
+							var labels = [
+							['%&ltfield&gt%', '查看', '将多个值拆分为单独的项目，例如：使用 %&ltartist&gt%'],
+							['$stripbranchprefix{%&ltfield&gt%}', '查看', '与上述相同，还会从每个值中删除前缀（如 "The" 或 "A"），例如：使用 $stripbranchprefix{%&ltartist&gt%}'],
+							['$swapbranchprefix{%&ltfield&gt%}', '查看', '与上述相同，还会将前缀（如 "The" 或 "A"）移动到每个值的末尾，例如：使用 $swapbranchprefix{%&ltartist&gt%}'],
+							['%field1%&#166%field2%&#166...', '查看', '&#166 将不同的字段合并到同一个分支级别，例如：使用 %album artist%&#166%artist% 或 %&ltalbum artist&gt%&#166%&ltartist&gt%.'],
+							['$nodisplay{X}', '查看', "按 X 排序和分组而不显示 X，例如：以下排序最新专辑优先并显示日期。<br><input class='input75' style='font:1em Segoe UI; border:none; background:none;' value='%artist%|$nodisplay{$sub(99999,%date%)}%album%[ &#39[&#39%date%&#39]&#39]|%tracknumber%. %title%'/>"],
+							['$nowplaying{X}', '过滤', '返回正在播放项的 X 的值，例如：artist IS $nowplaying{$meta(artist,0)} 显示正在播放的艺术家的曲目。'],
+							['$selected{X}', '过滤', '返回所选音轨的 X 值，例如：artist IS $selected{$meta(artist,0)} 显示所选（焦点）艺术家的曲目。'],
+							['$searchtext', '过滤', '返回搜索文本，例如：过滤器输入："genre HAS $searchtext"，然后在搜索框中输入 "rock"，生成查询 "genre HAS rock"'],
+							['$colour{normal,hover,selected}', '查看', '为一行文本的不同内容设置不同的颜色，更多信息见下文。']
+							];
+							var items = [];
+							for (j = 0; j < 8; j++) {
+								items[j] = [];
+								for (i = 0; i < labels[j].length; i++) {
+									items[j].push('<div class=info5;">'+labels[j][i]+'</div>');
+									if (i == 2) {
+										cells.push(items[j]);
+									}
+								}
+							}
+							columnCount = 3;
+						break;
+						case 'elementColour':
+							headers = ['按钮', '搜索', '分隔符', '线条', ''];
+							cells.push(headers);
+							var labels = ['默认', '混合', '文本', '高亮'];
+							var items = [];
+							for (j = 0; j < 4; j++) {
+								items[j] = [];
+								for (i = 0; i < menuTable.length; i++) {
+									var n = menuTable[i];
+									var id = n + j;
+									items[j].push('<input id="'+id+'" name="'+n+'" style="'+cbox+'" type="radio" />');
+									if (i == 3) {
+										items[j].push('<div style="padding-left:0.46em; text-align:left">'+labels[j]+'</div>');
+										cells.push(items[j]);
+									}
+								}
+							}
+							columnCount = 5;
+							break;
+							}
+						return [cells, headers.length, columnCount];
+				}
+
+				function generateTable(tb) {
+					var items = getTableData(tb);
+					var cells = items[0];
+					var headerCount = items[1];
+					var table = document.getElementById(tb);
+					var columnCount = items[2];
+
+					//Add the header row.
+					var row;
+					if (headerCount) {
+						row = table.insertRow(-1);
+						for (i = 0; i < headerCount; i++) {
+							var headerCell = document.createElement("TH");
+							headerCell.innerHTML = cells[0][i];
+							row.appendChild(headerCell);
+						}
+					}
+
+					//Add the data rows.
+					for (i = 1; i < cells.length; i++) {
+						row = table.insertRow(-1);
+						for (j = 0; j < columnCount; j++) {
+							var cell = row.insertCell(-1);
+							cell.innerHTML = cells[i][j];
+							if (tb != 'syntax' && i % 2 == 1) cell.style.background = '#E8E8E8';
+						}
+					}
+
+					if (tb == 'syntax') {
+						var els = document.getElementById(tb).getElementsByTagName("th");
+						for (i = 0;i <els.length;i++){
+							els[i].style.lineHeight = "1.62em";
+							els[i].style.textAlign = "left";
+							els[i].style.verticalAlign = "top";
+							els[i].style.border = "1px solid Gainsboro";
+						}
+						var els = document.getElementById(tb).getElementsByTagName("td");
+						for (i = 0;i <els.length;i++){
+							els[i].style.lineHeight = "1.62em";
+							els[i].style.textAlign = "left";
+							els[i].style.verticalAlign = "top";
+							els[i].style.border = "1px solid Gainsboro";
+						}
+					}
+				}
+
+				function setBehaviour() {
+					for (i = 0; i < 3; i++) {window.actionType.insertAdjacentHTML('beforeend', '<div><input id="actionMode'+i+'" name="actionMode" style="'+cbox+'" type="radio" /><label for="actionMode'+i+'" class="checkbox_label">'+actionTypeLabels[i]+'</label></div>');}
+					if (libSet['actionMode_internal'].value) {
+						window.click_dropdown.innerHTML = clickLabels[0];
+						window.click.insertAdjacentHTML('beforeend', '<a>预设</a>');
+						window.click_dropdown.style.background = 'rgb(244, 67, 54)';
+						window.dblClick_dropdown.innerHTML = dblClickLabels[0];
+						window.dblClick.insertAdjacentHTML('beforeend', '<a>预设</a>');
+						window.dblClick_dropdown.style.background = 'rgb(244, 67, 54)';
+					} else {
+						window.click_dropdown.innerHTML = clickLabels[libSet['clickAction_internal'].value];
+						for (i = 0; i < 4; i++) {window.click.insertAdjacentHTML('beforeend', '<a onclick="setClickAction(' + i + ');">'+clickLabels[i]+'</a>');}
+						window.dblClick_dropdown.innerHTML = dblClickLabels[libSet['dblClickAction_internal'].value];
+						for (i = 0; i < 4; i++) {window.dblClick.insertAdjacentHTML('beforeend', '<a onclick="setDblClickAction(' + i + ');">'+dblClickLabels[i]+'</a>');}
+					}
+
+					if (libSet['actionMode_internal'].value == 2) {
+						window.mbtnClick_dropdown.innerHTML = mbtnClickLabels[0];
+						window.mbtnClick.insertAdjacentHTML('beforeend', '<a>预设</a>');
+						window.mbtnClick_dropdown.style.background = 'rgb(244, 67, 54)';
+					} else {
+						window.mbtnClick_dropdown.innerHTML = mbtnClickLabels[libSet['mbtnClickAction_internal'].value];
+						for (i = 0; i < 3; i++) {window.mbtnClick.insertAdjacentHTML('beforeend', '<a onclick="setMbtnClickAction(' + i + ');">'+mbtnClickLabels[i]+'</a>');}
+					}
+
+					window.altClick_dropdown.innerHTML = altClickLabels[libSet['altClickAction_internal'].value];
+					for (i = 0; i < 3; i++) {window.altClick.insertAdjacentHTML('beforeend', '<a onclick="setAltClickAction(' + i + ');">'+altClickLabels[i]+'</a>');}
+
+					window.keystroke_dropdown.innerHTML = keystrokeLabels[libSet['keyAction_internal'].value];
+					for (i = 0; i < 2; i++) {window.keystroke.insertAdjacentHTML('beforeend', '<a onclick="setKeyAction(' + i + ');">'+keystrokeLabels[i]+'</a>');}
+
+					window.sbarShow_dropdown.innerHTML = sbarShowLabels[libSet['sbarShow_internal'].value];
+					for (i = 0; i < 3; i++) {window.sbarShow.insertAdjacentHTML('beforeend', '<a onclick="setSbarShow(' + i + ');" >'+sbarShowLabels[i]+'</a>');}
+					window.sbarType_dropdown.innerHTML = sbarTypeLabels[libSet['sbarType_internal'].value];
+					for (i = 0; i < 3; i++) {window.sbarType.insertAdjacentHTML('beforeend', '<a onclick="setsbarType(' + i + ');" >'+sbarTypeLabels[i]+'</a>');}
+					window.sbarCol_dropdown.innerHTML = sbarColLabels[libSet['sbarCol_internal'].value];
+					for (i = 0; i < 2; i++) {window.sbarCol.insertAdjacentHTML('beforeend', '<a onclick="setSbarCol(' + i + ');" >'+sbarColLabels[i]+'</a>');}
+					sbar_col_dropdown.style.display = libSet['sbarType_internal'].value != 2 ? "inline-block" : "none";
+					window.sbarIcon_dropdown.innerHTML = sbarIconLabels[libSet['sbarButType_internal'].value];
+					for (i = 0; i < 3; i++) {window.sbarIcon.insertAdjacentHTML('beforeend', '<a onclick="setSbarIcon(' + i + ');" >'+sbarIconLabels[i]+'</a>');}
+					sbar_icon_dropdown.style.display = libSet['sbarType_internal'].value != 2 ? "inline-block" : "none";
+					for (i = 0; i < 3; i++) {window.scrolling.insertAdjacentHTML('beforeend', '<div><input id="scroll_checkbox'+i+'" name="behaviour_checkbox" style="'+cbox+'" type="checkbox" /><label for="scroll_checkbox'+i+'" class="checkbox_label">'+scrollLabels[i]+'</label></div>');}
+
+					window.search_dropdown.innerHTML = searchLabels[libSet['searchSend_internal'].value];
+					for (i = 0; i < 3; i++) {window.search.insertAdjacentHTML('beforeend', '<a onclick="setSearch(' + i + ');">'+searchLabels[i]+'</a>');}
+					i = 3; window.searchEnter.insertAdjacentHTML('beforeend', '<div><input id="search_checkbox'+i+'" name="behaviour_checkbox" style="'+cbox+'" type="checkbox" /><label for="search_checkbox'+i+'" class="checkbox_label">'+searchLabels[i]+'</label></div>');
+					for (i = 0; i < 3; i++) {window.expand.insertAdjacentHTML('beforeend', '<div><input id="expand_checkbox'+i+'" name="behaviour_checkbox" style="'+cbox+'" type="checkbox" /><label for="expand_checkbox'+i+'" class="checkbox_label">'+treeLabels[i]+'</label></div>');}
+					i = 4; window.expandLimit.insertAdjacentHTML('beforeend', '<div class="input_cnt3"><input id="expand_container'+i+'" name="behaviour_input" class="input3" /></div>');
+					for (i = 0; i < 2; i++) {window.selection.insertAdjacentHTML('beforeend', '<div><input id="selection_checkbox'+i+'" name="behaviour_checkbox" style="'+cbox+'" type="checkbox" /><label for="selection_checkbox'+i+'" class="checkbox_label">'+selectionLabels[i]+'</label></div>');}
+					for (i = 0; i < 3; i++) {window.remember.insertAdjacentHTML('beforeend', '<div><input id="remember_checkbox'+i+'" name="behaviour_checkbox" style="'+cbox+'" type="checkbox" /><label for="remember_checkbox'+i+'" class="checkbox_label">'+rememberLabels[i]+'</label></div>');}
+					i = 0; window.playlist.insertAdjacentHTML('beforeend', '<div class="input_cnt2"><label for="playlist_container'+i+'" class="inp_label1">'+playlistLabels[i]+'</label><input id="playlist_container'+i+'" name="behaviour_input" class="input75" /></div>');
+					i = 1; window.playlist.insertAdjacentHTML('beforeend', '<div><input id="playlist_checkbox'+i+'" name="behaviour_checkbox" style="'+cbox+'" type="checkbox" /><label for="playlist_checkbox'+i+'" class="checkbox_label">'+playlistLabels[i]+'</label></div>');
+					window.playlistSort.insertAdjacentHTML('beforeend', '<div class="input_cnt3"><label for="playlistSort_container1" class="inp_label1">'+playlistSortLabels[0]+'</label><input id="playlistSort_container1" name="behaviour_input" class="input75" /></div>');
+					for (i = 0; i < 2; i++) {
+						window.targetPlaylist.insertAdjacentHTML('beforeend', '<div><input id="sendToCur'+i+'" name="sendToCur" style="'+cbox+'" type="radio" /><label for="sendToCur'+i+'" class="checkbox_label">'+targetPlaylistLabels[i]+'</label></div>');
+					}
+				}
+
+				function setDisplay() {
+					for (i = 0; i < 3; i++) {window.bar.insertAdjacentHTML('beforeend', '<div><input id="bar_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="bar_checkbox'+i+'" class="checkbox_label">'+barLabels[i]+'</label></div>');}
+
+					window.theme_dropdown.innerHTML = themeLabels[libSet['theme_internal'].value];
+					for (i = 0; i < 6; i++) {window.themeBg.insertAdjacentHTML('beforeend', '<a onclick="setTheme(' + i + ');">'+themeLabels[i]+'</a>');}
+					i = 6; window.themeStyle.insertAdjacentHTML('beforeend', '<div><input id="theme_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="theme_checkbox'+i+'" class="checkbox_label">'+themeLabels[i]+'</label></div>');
+					i = 0; window.coverFormat.insertAdjacentHTML('beforeend', '<div><input id="coverFormat_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="coverFormat_checkbox'+i+'" class="checkbox_label">'+coverFormatLabels[i]+'</label></div>');
+					i = 1; window.coverFormat.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="coverFormat_container'+i+'" name="display_input" class="input3" /><label for="coverFormat_container'+i+'" class="inp_label2">'+coverFormatLabels[i]+'</label></div>');
+					i = 7; window.panelStyle.insertAdjacentHTML('beforeend', '<div><input id="theme_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="theme_checkbox'+i+'" class="checkbox_label">'+themeLabels[i]+'</label></div>');
+					window.lines.insertAdjacentHTML('beforeend', '<div><input id="lines_checkbox" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="lines_checkbox" class="checkbox_label">深色</label></div>');
+
+					for (i = 0; i < 2; i++) {window.metrics1.insertAdjacentHTML('beforeend', '<div class="input_cnt3"><input id="metrics_container'+i+'" name="display_input" style="padding:0; margin:0;" class="input3" /><label for="metrics_container'+i+'" class="inp_label2">'+metricsLabels[i]+'</label></div>');}
+					for (i = 2; i < 4; i++) {window.metrics2.insertAdjacentHTML('beforeend', '<div class="input_cnt3"><input id="metrics_container'+i+'" name="display_input" style="padding:0; margin:0;" class="input3" /><label for="metrics_container'+i+'" class="inp_label2">'+metricsLabels[i]+'</label></div>');}
+					for (i = 4; i < 6; i++) {window.metrics3.insertAdjacentHTML('beforeend', '<div class="input_cnt3"><input id="metrics_container'+i+'" name="display_input" style="padding:0; margin:0;" class="input3" /><label for="metrics_container'+i+'" class="inp_label2">'+metricsLabels[i]+'</label></div>')};
+
+					window.root_dropdown.innerHTML = rootLabels[libSet['rootNode_internal'].value];
+					for (i = 0; i < 4; i++) {window.root.insertAdjacentHTML('beforeend', '<a onclick="setRoot(' + i + ');">'+rootLabels[i]+'</a>');}
+					i = 4; window.rootStyle.insertAdjacentHTML('beforeend', '<div><input id="root_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="root_checkbox'+i+'" class="checkbox_label">'+rootLabels[i]+'</label></div>');
+					i = 5; window.rootStyle.insertAdjacentHTML('beforeend', '<div><input id="root_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="root_checkbox'+i+'" class="checkbox_label">'+rootLabels[i]+'</label></div>');
+
+					window.node_dropdown.innerHTML = libSet['nodeStyle_internal'].value != 7 ? nodeLabels[libSet['nodeStyle_internal'].value] : '方形 (windows)';
+					for (i = 0; i < 7; i++) {window.node.insertAdjacentHTML('beforeend', '<a id="nodeNo'+i+'" onclick="setNode(' + i + ');">'+nodeLabels[i]+'</a>');}
+					i = 7; window.nodeLines.insertAdjacentHTML('beforeend', '<div><input id="node_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="node_checkbox'+i+'" class="checkbox_label">显示线条（仅限方形）</label></div>');
+
+					window.itemCounts_dropdown.innerHTML = itemCountsLabels[libSet['nodeCounts_internal'].value];
+					for (i = 0; i < 3; i++) {window.itemCounts.insertAdjacentHTML('beforeend', '<a onclick="setItemCounts(' + i + ');">'+itemCountsLabels[i]+'</a>');}
+					i = 3; window.countsRight.insertAdjacentHTML('beforeend', '<div><input id="itemCounts_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="itemCounts_checkbox'+i+'" class="checkbox_label">'+itemCountsLabels[i]+'</label></div>');
+					for (i = 0; i < 3; i++) {window.statistics2.insertAdjacentHTML('beforeend', '<div class="input_cnt5"><input id="statistics_container'+i+'" name="display_input" class="input70" /><label for="metrics_container'+i+'" class="inp_label2">'+statisticsLabels[i]+'</label></div>');}
+					for (i = 4; i < 6; i++) {window.labelStatistics.insertAdjacentHTML('beforeend', '<div><input id="itemCounts_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="itemCounts_checkbox'+i+'" class="checkbox_label">'+statisticsLabels[i]+'</label></div>')};
+					window.showHl_dropdown.innerHTML = highLightLabels[libSet['highLightRow_internal'].value];
+					for (i = 0; i < 4; i++) {window.showHl.insertAdjacentHTML('beforeend', '<a onclick="setHoverBg(' + i + ');">'+highLightLabels[i]+'</a>');}
+					i = 0; window.frameStyle.insertAdjacentHTML('beforeend', '<div><input id="frame_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="frame_checkbox'+i+'" class="checkbox_label">边框样式（专辑封面）：图片边框</label></div>');
+					for (i = 4; i < 7; i++) {window.showH2.insertAdjacentHTML('beforeend', '<div><input id="showH2_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="showH2_checkbox'+i+'" class="checkbox_label">'+highLightLabels[i]+'</label></div>');}
+					for (i = 0; i < 7; i++) {window.show.insertAdjacentHTML('beforeend', '<div><input id="show_checkbox'+i+'" name="display_checkbox" style="'+cbox+'" type="checkbox" /><label for="show_checkbox'+i+'" class="checkbox_label">'+showLabels[i]+'</label></div>');}
+				}
+
+				var rootStubLabels = JSON.parse(libSet['rootImages_internal'].value) || [];
+				var root_ix = libSet['curRootImg_internal'].value;
+
+				var noArtistStubLabels = JSON.parse(libSet['noArtistImages_internal'].value) || [];
+				var noart_ix = libSet['curNoArtistImg_internal'].value;
+
+				var noCoverStubLabels = JSON.parse(libSet['noCoverImages_internal'].value) || [];
+				var nocov_ix = libSet['curNoCoverImg_internal'].value;
+
+				function setAlbumArt() {
+					for (i = 0; i < 5; i++) {window.labels.insertAdjacentHTML('beforeend', '<div><input id="albumArtLabelType'+i+'" name="albumArtLabelType" style="'+cbox+'" type="radio" /><label for="albumArtLabelType'+i+'" class="checkbox_label">'+albumArtLabels[i]+'</label></div>');}
+					i = 5; window.flip.insertAdjacentHTML('beforeend', '<div><input id="flip_checkbox'+i+'" name="albumart_checkbox" style="'+cbox+'" type="checkbox" /><label for="flip_checkbox'+i+'" class="checkbox_label">'+albumArtLabels[i]+'</label></div>');
+
+					window.overlay_dropdown.innerHTML = albumArtOverlayLabels[libSet['itemOverlayType_internal'].value];
+					for (i = 0; i < 3; i++) {window.overlay.insertAdjacentHTML('beforeend', '<a onclick="setOverlay(' + i + ');">'+albumArtOverlayLabels[i]+'</a>');}
+
+					window.textAlign_dropdown.innerHTML = textAlignLabels[libSet['albumArtTextAlign_internal'].value];
+					for (i = 0; i < 3; i++) {window.textAlign.insertAdjacentHTML('beforeend', '<a onclick="setTextAlign(' + i + ');">'+textAlignLabels[i]+'</a>');}
+
+					for (i = 0; i < 2; i++) {window.followCurrent.insertAdjacentHTML('beforeend', '<div><input id="selection_checkbox'+i+'" name="albumart_checkbox" style="'+cbox+'" type="checkbox" /><label for="selection_checkbox'+i+'" class="checkbox_label">'+followCurrentLabels[i]+'</label></div>');}
+					for (i = 0; i < 2; i++) {window.useCache.insertAdjacentHTML('beforeend', '<div><input id="cache_checkbox" name="albumart_checkbox" style="'+cbox+'" type="checkbox" /><label for="cache_checkbox" class="checkbox_label">'+diskCacheLabels[i]+'</label></div>');}
+					var pth = '...*你的文件路径*...\\art_img\\$cut(%artist%,1)\\%artist%\\*    [根据需要改变 *你的文件路径*；模版假设简介(biography)保存在默认位置]';
+					window.photoPath.insertAdjacentHTML('beforeend', '<div class="input_cnt1" id="view_cnt_photoPath"><input name="photoPath_view" class="input98" readonly value="'+pth+'" /></div>')
+
+					window.rootStub_dropdown.innerHTML = '<b>全部音乐:</b> <img src="'+rootStubLabels[root_ix].path +'" alt="'+rootStubLabels[root_ix].name+'" width="'+ em +'" height="'+ em +'" class="stub"/> '+rootStubLabels[root_ix].name+'<';
+					for (i = 0; i < rootStubLabels.length; i++) {window.rootStub.insertAdjacentHTML('beforeend', '<a onclick="setRootImage(' + i + ');"> <img src="'+rootStubLabels[i].path+'" alt="'+rootStubLabels[i].name+'" width="'+ em +'" height="'+ em +'" style="vertical-align:middle;"/> '+rootStubLabels[i].name+'</a>');}
+
+					window.noArtistStub_dropdown.innerHTML = '<b>无艺术家:</b> <img src="'+noArtistStubLabels[noart_ix].path +'" alt="'+noArtistStubLabels[noart_ix].name+'" width="'+ em +'" height="'+ em +'" class="stub"/> '+noArtistStubLabels[noart_ix].name+'<';
+					for (i = 0; i < noArtistStubLabels.length; i++) {window.noArtistStub.insertAdjacentHTML('beforeend', '<a onclick="setNoArtistImage(' + i + ');"> <img src="'+noArtistStubLabels[i].path+'" alt="'+noArtistStubLabels[i].name+'" width="'+ em +'" height="'+ em +'" style="vertical-align:middle;"/> '+noArtistStubLabels[i].name+'</a>');}
+
+					window.noCoverStub_dropdown.innerHTML = '<b>无封面:</b> <img src="'+noCoverStubLabels[nocov_ix].path +'" alt="'+noCoverStubLabels[nocov_ix].name+'" width="'+ em +'" height="'+ em +'" class="stub"/> '+noCoverStubLabels[nocov_ix].name+'<';
+					for (i = 0; i < noCoverStubLabels.length; i++) {window.noCoverStub.insertAdjacentHTML('beforeend', '<a onclick="setNoCoverImage(' + i + ');"> <img src="'+noCoverStubLabels[i].path+'" alt="'+noCoverStubLabels[i].name+'" width="'+ em +'" height="'+ em +'" style="vertical-align:middle;"/> '+noCoverStubLabels[i].name+'</a>');}
+					generateTable('imageFormat');
+					for (i = 0; i < 2; i++) {window.gap.insertAdjacentHTML('beforeend', '<div class="input_cnt3"><input id="gap_container'+i+'" name="albumart_input" style="padding:0; margin:0;" class="input15" /><label for="gap_container'+i+'" class="inp_label2">'+albumArtGapLabels[i]+'</label></div>');}
+					window.flowMode.insertAdjacentHTML('beforeend', '<div><input id="flowMode_checkbox" name="albumart_checkbox" style="'+cbox+'" type="checkbox" /><label for="flowMode_checkbox" class="checkbox_label">启用</label></div>');
+					window.dropShadow.insertAdjacentHTML('beforeend', '<div><input id="dropShadow_checkbox" name="albumart_checkbox" style="'+cbox+'" type="checkbox" /><label for="dropShadow_checkbox" class="checkbox_label">启用</label></div>');
+					window.sameAsTree.insertAdjacentHTML('beforeend', '<div><input id="sameAsTree_checkbox" name="albumart_checkbox" style="'+cbox+'" type="checkbox" /><label for="sameAsTree_checkbox" class="checkbox_label">与“树”视图相同</label></div>');
+
+					window.thumbSize_dropdown.innerHTML = thumbnailSizeLabels[libSet['thumbNailSize_internal'].value];
+					for (i = 0; i < 8; i++) {window.thumbSize.insertAdjacentHTML('beforeend', '<a onclick="setthumbSize(' + i + ');">'+thumbnailSizeLabels[i]+'</a>');}
+
+					i = 0; window.indexLetter.insertAdjacentHTML('beforeend', '<div><input id="indexLetter_checkbox'+i+'" name="albumart_checkbox" style="'+cbox+'" type="checkbox" /><label for="indexLetter_checkbox'+i+'" class="checkbox_label">'+indexLetterLabels[i]+'</label></div>');
+					i = 1; window.indexLetter.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="indexLetter_container'+i+'" name="albumart_input" class="input7" /><label for="indexLetter_container'+i+'" class="inp_label2">'+indexLetterLabels[i]+'</label></div>');
+					i = 2; window.indexLetter.insertAdjacentHTML('beforeend', '<div><input id="indexLetter_checkbox'+i+'" name="albumart_checkbox" style="'+cbox+'" type="checkbox" /><label for="indexLetter_checkbox'+i+'" class="checkbox_label">'+indexLetterLabels[i]+'</label></div>');
+				}
+
+				var bg = [];
+				var fg = [];
+				function setCustomColours(value) {
+					var items = ['text', 'text_h', 'textSel', 'nowp', 'search', 'txt_box', 'bg', 'bg_h', 'bgSel', 'frame', 'bgSelframe', 'counts', 'icon_c', 'icon_e', 'icon_h', 'line', 's_line', 'sideMarker', 'bgTrans'];
+					for (var i= 0; i < items.length; i++) {
+						bg[i] = assign(libSet[items[i] + '_internal'][value], i < 6 ? 0 : 1);
+						fg[i] = getSelCol(bg[i]);
+						bg[i] = "rgb("+bg[i][0]+","+bg[i][1]+","+bg[i][2]+")";
+						var el = document.getElementById('colour_container'+i);
+						el.style.background = bg[i];
+						el.style.color = fg[i];
+					}
+				}
+
+				function setCustom() {
+					i = 0; window.fonts.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="font_checkbox'+i+'" name="custom_checkbox" style="'+cbox+'" type="checkbox" /><input id="font_container'+i+'" name="custom_input" class="input40" /><label for="font_container'+i+'" class="inp_label2">'+fontLabels[i]+'</label></div>');
+					for (i = 1; i < 4; i++) {window.albumArtFonts.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="font_checkbox'+i+'" name="custom_checkbox" style="'+cbox+'" type="checkbox" /><input id="font_container'+i+'" name="custom_input" class="input40" /><label for="font_container'+i+'" class="inp_label2">'+fontLabels[i]+'</label></div>');}
+					for (i = 0; i < 6; i++) {window.colours1.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="colour_checkbox'+i+'" name="custom_checkbox" style="'+cbox+'" type="checkbox" /><input id="colour_container'+i+'" name="custom_input" class="input40" /><label for="colour_container'+i+'" class="inp_label2">'+colourLabels[i]+'</label></div>');}
+					for (i = 6; i < 19; i++) {window.colours2.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="colour_checkbox'+i+'" name="custom_checkbox" style="'+cbox+'" type="checkbox" /><input id="colour_container'+i+'" name="custom_input" class="input40" /><label for="colour_container'+i+'" class="inp_label2">'+colourLabels[i]+'</label></div>');}
+				}
+
+				function setAdvanced() {
+					for (i = 0; i < 4; i++) {window.cusScroll.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="scroll_container'+i+'" name="advanced_input" class="input35" /><label for="scroll_container'+i+'" class="inp_label2">'+cusScrollLabels[i]+'</label></div>');}
+					for (i = 0; i < 5; i++) {window.scrollbar.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="scrollbar_container'+i+'" name="advanced_input" class="input35" /><label for="scrollbar_container'+i+'" class="inp_label2">'+scrollbarLabels[i]+'</label></div>');}
+					var fFamily = libSet['butCustIconFont_internal'].value;
+					i = 5; window.scrollbar.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="scrollbar_container'+i+'" name="advanced_input" class="input35" style="font-family:'+fFamily+'" /><label for="scrollbar_container'+i+'" class="inp_label2">'+scrollbarLabels[i]+'</label></div>');
+					for (i = 6; i < 8; i++) {window.scrollbar.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="scrollbar_container'+i+'" name="advanced_input" class="input35" /><label for="scrollbar_container'+i+'" class="inp_label2">'+scrollbarLabels[i]+'</label></div>');}
+					i = 8; window.scrollbar.insertAdjacentHTML('beforeend', '<div><input id="scrollbar_checkbox'+i+'" name="advanced_checkbox" style="'+cbox+'" type="checkbox" /><label for="scrollbar_checkbox'+i+'" class="checkbox_label">'+scrollbarLabels[i]+'</label></div>');
+					fFamily = libSet['custIconFont_internal'].value;
+					i = 0; window.cusNode.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="cusNode_container'+i+'" name="advanced_input" class="input35" style="font-family:'+fFamily+'" /><label for="cusNode_container'+i+'" class="inp_label2">'+cusNodeLabels[i]+'</label></div>');
+					for (i = 1; i < 3; i++) {window.cusNode.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="cusNode_container'+i+'" name="advanced_input" class="input35" /><label for="cusNode_container'+i+'" class="inp_label2">'+cusNodeLabels[i]+'</label></div>');}
+					i = 3; window.cusNode.insertAdjacentHTML('beforeend', '<div><input id="cusNode_checkbox'+i+'" name="advanced_checkbox" style="'+cbox+'" type="checkbox" /><label for="cusNode_checkbox'+i+'" class="checkbox_label">'+cusNodeLabels[i]+'</label></div>');
+					i = 0; window.themeBlur.insertAdjacentHTML('beforeend', '<div><input id="themeBlur_checkbox'+i+'" name="advanced_checkbox" style="'+cbox+'" type="checkbox" /><label for="themeBlur_checkbox'+i+'" class="checkbox_label">'+themeBlurLabels[i]+'</label></div>');
+					for (i = 1; i < 3; i++) {window.themeBlur.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="themeBlur_container'+i+'" name="advanced_input" class="input35" /><label for="themeBlur_container'+i+'" class="inp_label2">'+themeBlurLabels[i]+'</label></div>');}
+					i = 0; window.load.insertAdjacentHTML('beforeend', '<div><input id="load_checkbox'+i+'" name="advanced_checkbox" style="'+cbox+'" type="checkbox" /><label for="load_checkbox'+i+'" class="checkbox_label">'+loadLabels[i]+'</label></div>');
+					i = 1; window.prefixes.insertAdjacentHTML('beforeend', '<div class="input_cnt4"><label for="prefixes_container'+i+'" class="inp_label1">'+loadLabels[i]+'</label><input id="prefixes_container'+i+'" name="advanced_input" class="inputFull" /></div>');
+					i = 0; window.mode.insertAdjacentHTML('beforeend', '<div><input id="mode_checkbox'+i+'" name="advanced_checkbox" style="'+cbox+'" type="checkbox" /></div>');
+					for (i = 0; i < 2; i++) {window.modeInput.insertAdjacentHTML('beforeend', '<div class="input_cnt1"><input id="modeInput_container'+i+'" name="advanced_input" class="input35" /><label for="modeInput_container'+i+'" class="inp_label2">'+modeLabels[i]+'</label></div>');}
+				}
+
+				setViews();
+				setFilters();
+				setBehaviour();
+				setDisplay();
+				setAlbumArt();
+				setCustom();
+				setAdvanced();
+				setCustomColours('value');
+				setCheckboxes('all', 'value');
+				setInputs('all', 'value');
+				setRadioBtns('all', 'value');
+				generateTable('syntax');
+
+				document.getElementById("btn_delete").disabled = true;
+				document.getElementById("btn_down").disabled = true;
+				document.getElementById("btn_up").disabled = true;
+				document.getElementById("btn_apply").disabled = true;
+			}
+
+			function setCheckboxes(page, value) {
+				var checkboxes;
+				if (page == 'all' || page == 'views') {
+					checkboxes = document.getElementsByName('viewCheckbox');
+					for (i = 0; i < checkboxes.length; i++) {
+						checkboxes[i].checked = cfg[0][i].menu;
+					}
+				}
+				if (page == 'all' || page == 'filters') {
+					checkboxes = document.getElementsByName('filterCheckbox');
+					for (i = 0; i < checkboxes.length; i++) {
+						checkboxes[i].checked = cfg[1][i].menu;
+					}
+				}
+				var nm = page.toString()+'_checkbox', boxes = document.querySelectorAll(page == 'all' ? "[name$='_checkbox']" : "[name="+nm+"]");
+				for (i = 0; i < boxes.length; i++) {
+					boxes[i].checked = libSet[box[page][i] + '_internal'][value];
+				}
+
+				if (libSet['albumArtShow_internal'][value]) {
+					window.show_checkbox4.parentNode.disabled = true;
+				}
+				if (window.remember_checkbox1.checked || window.remember_checkbox2.checked) window.remember_checkbox0.checked = true;
+				window.remember_checkbox0.parentNode.disabled = window.remember_checkbox1.checked || window.remember_checkbox2.checked;
+				window.thumbSize_dropdown.style.visibility = window.flowMode_checkbox.checked ? 'hidden' : 'visible';
+				window.thumbNailSize.style.visibility = window.flowMode_checkbox.checked ? 'hidden' : 'visible';
+				window.checkbox_folderView.disabled = true;
+				window.checkbox_menuName.disabled = true;
+				document.getElementById("albumArtCfg").style.display = window.show_checkbox4.checked ? "block" : "none";
+				window.indexLetter_checkbox2.parentNode.disabled = libSet['albumArtLetterNo_internal'].value == 0;
+				window.metrics_container4.parentNode.style.display = !libSet['filterShow_internal'].value && !libSet['searchShow_internal'].value && !libSet['settingsShow_internal'].value ? "block" : "none";
+			}
+
+			function textChange(e) {
+				if (window.remember_checkbox1.checked || window.remember_checkbox2.checked) window.remember_checkbox0.checked = true;
+				window.remember_checkbox0.parentNode.disabled = window.remember_checkbox1.checked || window.remember_checkbox2.checked;
+				window.theme_checkbox7.parentNode.disabled = libSet['theme_internal'].value == 1 || libSet['theme_internal'].value == 4;
+				window.coverFormat_checkbox0.parentNode.disabled = libSet['theme_internal'].value != 5;
+				window.coverFormat_container1.parentNode.disabled = libSet['theme_internal'].value != 5;
+				window.frame_checkbox0.parentNode.disabled = libSet['highLightRow_internal'].value != 3;
+				window.node_checkbox7.parentNode.disabled = libSet['nodeStyle_internal'].value != 0 && libSet['nodeStyle_internal'].value != 7;
+				window.itemCounts_checkbox3.parentNode.disabled = libSet['itemShowStatistics_internal'].value;
+				setNodeLabels();
+				window.showH2_checkbox5.parentNode.disabled = window.cusNode_checkbox3.checked && (libSet['nodeStyle_internal'].value == 0 || libSet['nodeStyle_internal'].value == 7);
+				document.getElementById("albumArtCfg").style.display = window.show_checkbox4.checked ? "block" : "none";
+				window.albumArtLabelType2.parentNode.disabled = window.flowMode_checkbox.checked;
+				window.thumbSize_dropdown.style.visibility = window.flowMode_checkbox.checked ? 'hidden' : 'visible';
+				window.thumbNailSize.style.visibility = window.flowMode_checkbox.checked ? 'hidden' : 'visible';
+				window.metrics_container4.parentNode.style.display = !libSet['filterShow_internal'].value && !libSet['searchShow_internal'].value && !libSet['settingsShow_internal'].value ? "block" : "none";
+				clickLabels = libSet['actionMode_internal'].value == 1 ? ['发送到播放列表'] : libSet['actionMode_internal'].value == 2 ? ['选择'] : ['选择', '发送到播放列表', '发送到播放列表并播放', '发送到播放列表并播放 [添加，如果正在播放]'];
+				dblClickLabels = libSet['actionMode_internal'].value == 1 ? ['发送到播放列表并播放'] : libSet['actionMode_internal'].value == 2 ? ['发送到播放队列并播放'] : ['发送到播放列表', '发送到播放列表并播放', '展开/折叠（树型视图）', '发送到播放队列并播放'];
+				mbtnClickLabels = libSet['actionMode_internal'].value == 2 ? ['添加到播放队列（中键双击移除）'] : ['添加到默认播放列表', '添加到当前播放列表', '添加到播放队列（中键双击移除）'];
+
+				if (libSet['actionMode_internal'].value) {
+					window.click_dropdown.innerHTML = clickLabels[0];
+					window.click.innerHTML = '';
+					window.click.insertAdjacentHTML('beforeend', '<a>预设</a>');
+					window.click_dropdown.style.background = 'rgb(244, 67, 54)';
+					window.dblClick_dropdown.innerHTML = dblClickLabels[0];
+					window.dblClick.innerHTML = '';
+					window.dblClick.insertAdjacentHTML('beforeend', '<a>预设</a>');
+					window.dblClick_dropdown.style.background = 'rgb(244, 67, 54)';
+				} else {
+					window.click_dropdown.innerHTML = clickLabels[libSet['clickAction_internal'].value];
+					window.click.innerHTML = '';
+					for (i = 0; i < 4; i++) {window.click.insertAdjacentHTML('beforeend', '<a onclick="setClickAction(' + i + ');">'+clickLabels[i]+'</a>');}
+					window.click_dropdown.style.background = '#3e8e41';
+					window.dblClick_dropdown.innerHTML = dblClickLabels[libSet['dblClickAction_internal'].value];
+					window.dblClick.innerHTML = '';
+					for (i = 0; i < 4; i++) {window.dblClick.insertAdjacentHTML('beforeend', '<a onclick="setDblClickAction(' + i + ');">'+dblClickLabels[i]+'</a>');}
+					window.dblClick_dropdown.style.background = '#3e8e41';
+				}
+				if (libSet['actionMode_internal'].value == 2) {
+						window.mbtnClick_dropdown.innerHTML = mbtnClickLabels[0];
+						window.mbtnClick.innerHTML = '';
+						window.mbtnClick.insertAdjacentHTML('beforeend', '<a>预设</a>');
+						window.mbtnClick_dropdown.style.background = 'rgb(244, 67, 54)';
+				} else {
+					window.mbtnClick_dropdown.innerHTML = mbtnClickLabels[libSet['mbtnClickAction_internal'].value];
+					window.mbtnClick.innerHTML = '';
+					for (i = 0; i < 3; i++) {window.mbtnClick.insertAdjacentHTML('beforeend', '<a onclick="setMbtnClickAction(' + i + ');">'+mbtnClickLabels[i]+'</a>');}
+					window.mbtnClick_dropdown.style.background = '#3e8e41';
+				}
+			}
+
+			setInterval(inputChanged, 500);
+			function inputChanged() {
+				window.indexLetter_checkbox2.parentNode.disabled = libSet['albumArtLetterNo_internal'].value == 0;
+				set_btn_apply_state();
+			}
+
+			function setRadioBtns(page, value) {
+				var radios = radio[page];
+				for (i = 0; i < radios.length; i++) {
+					var radioBtns = document.getElementsByName(radios[i]);
+					var new_value = radios[i] == 'nodeStyle' && libSet[radios[i] + '_internal'][value] == 7 ? 0 : libSet[radios[i] + '_internal'][value];
+					for (j = 0; j < radioBtns.length; j++) {
+						if (j == new_value) {
+							radioBtns[j].checked = true;
+							radioBtns[j].value = j;
+						}
+					}
+				}
+				window.theme_checkbox7.parentNode.disabled = libSet['theme_internal'].value == 1 || libSet['theme_internal'].value == 4;
+				window.coverFormat_checkbox0.parentNode.disabled = libSet['theme_internal'].value != 5;
+				window.coverFormat_container1.parentNode.disabled = libSet['theme_internal'].value != 5;
+				if (libSet['themed_internal'].value) window.themeStyle.style.display = "none";
+				if (libSet['themed_internal'].value) window.coverFormat.style.display = "none";
+				if (libSet['themed_internal'].value) window.panelStyle.style.display = "none";
+				window.node_checkbox7.parentNode.disabled = libSet['nodeStyle_internal'].value != 0 && libSet['nodeStyle_internal'].value != 7;
+				window.showH2_checkbox5.parentNode.disabled = window.cusNode_checkbox3.checked && (libSet['nodeStyle_internal'].value == 0 || libSet['nodeStyle_internal'].value == 7);
+
+				window.albumArtLabelType2.parentNode.disabled = window.flowMode_checkbox.checked;
+			}
+
+			function setViews(clear) {
+				if (clear) document.getElementById("view").innerHTML = '';
+				for (i = 0; i < cfg[0].length; i++) {
+					var v = cfg[0][i];
+					if (i < cfg[0].length - 1) window.view.insertAdjacentHTML('beforeend', '<div class="input_cnt1" id="view_cnt'+i+'"><input name="viewCheckbox" style="'+cbox+'" type="checkbox" /><input id="view_container'+i+'" name="view_name" class="input21" /><input name="input_view" class="input71" /></div>')
+					else window.view.insertAdjacentHTML('beforeend', '<div class="input_cnt1" id="view_cnt_folderView"><input id="checkbox_folderView" name="viewCheckbox" style="'+cbox+'" type="checkbox" /><input id="view_container'+i+'" name="view_name" class="input21" /><input name="input_view" class="input71" readonly /></div>')
+				}
+			}
+
+
+			function setFilters(clear) {
+				if (clear) document.getElementById("filter").innerHTML = '';
+				for (i = 0; i < cfg[1].length; i++) {
+					var v = cfg[1][i];
+					if (i < cfg[1].length - 1) window.filter.insertAdjacentHTML('beforeend', '<div class="input_cnt1" id="filter_cnt'+i+'"><input name="filterCheckbox" style="'+cbox+'" type="checkbox" /><input id="filter_container'+i+'" name="filter_name" class="input21" /><input name="input_filter" class="input71" /></div>');
+					else window.filter.insertAdjacentHTML('beforeend', '<div class="input_cnt1" id="filter_cnt_menuName"><input id="checkbox_menuName" name="filterCheckbox" style="'+cbox+'" type="checkbox" /><input id="filter_container'+i+'" name="filter_name" class="input21" /><input name="input_filter" class="input71" readonly /></div>');
+				}
+			}
+
+			function getValues() {
+				var v = cfg[0] = [];
+				var inputs = document.getElementsByName('view_name');
+				for (i = 0; i < inputs.length; i++) {
+					v[i] = {}; v[i].name = inputs[i].value;
+				}
+
+				inputs = document.getElementsByName('input_view');
+				for (i = 0; i < inputs.length; i++) {
+					v[i].type = inputs[i].value;
+				}
+
+				var check = document.getElementsByName('viewCheckbox');
+				for (i = 0; i < check.length; i++) {
+					v[i].menu = check[i].checked;
+				}
+
+				v = cfg[1] = [];
+				inputs = document.getElementsByName('filter_name');
+				for (i = 0; i < inputs.length; i++) {
+					v[i] = {}; v[i].name = inputs[i].value;
+				}
+
+				inputs = document.getElementsByName('input_filter');
+				for (i = 0; i < inputs.length; i++) {
+					v[i].type = inputs[i].value;
+				}
+
+				check = document.getElementsByName('filterCheckbox');
+				for (i = 0; i < check.length; i++) {
+					v[i].menu = check[i].checked;
+				}
+
+				inputs = document.querySelectorAll("[name$='_input']");
+				for (i = 0; i < inputs.length; i++) {
+					(libSet[input.all.name[i] + '_internal'] || cfg[input.all.name[i] + '_internal']).value = input.all.type[i] == 'text' ? inputs[i].value : input.all.type[i] == 'int' ? parseInt(inputs[i].value) : parseFloat(inputs[i].value);
+				}
+
+				var boxes = document.querySelectorAll("[name$='_checkbox']");
+				for (i = 0; i < boxes.length; i++) {
+					(libSet[box.all[i] + '_internal'] || cfg[box.all[i] + '_internal']).value = boxes[i].checked;
+				}
+
+				for (i = 0; i < radio.all.length; i++) {
+					var radioBtns = document.getElementsByName(radio.all[i]);
+					for (j = 0; j < radioBtns.length; j++) {
+						if (radioBtns[j].checked) {
+							libSet[radio.all[i] + '_internal'].value = j;
+							break;
+						}
+					}
+				}
+			}
+
+			window.btn_ok.onclick = function () {
+				getValues();
+				var new_cfg = JSON.stringify(cfg);
+				var new_ppt = JSON.stringify(libSet);
+				var new_cur = JSON.stringify(cur);
+				if (new_cfg == parsed_args[0]) new_cfg = '';
+				if (new_ppt == parsed_args[1]) new_ppt = '';
+				if (new_cur == parsed_args[2]) new_cur = '';
+				if (new_cfg || new_ppt || new_cur) {
+					callback && callback(new_cfg, new_ppt, '' , new_cur);
+				} else {
+					if (new_cur) callback && callback('', '', '', new_cur);
+				}
+				close_window();
+			}
+
+			window.btn_apply.onclick = function () {
+				getValues();
+				var new_cfg = JSON.stringify(cfg);
+				var new_ppt = JSON.stringify(libSet);
+				if (new_cfg == parsed_args[0]) new_cfg = '';
+				else parsed_args[0] = new_cfg;
+				if (new_ppt == parsed_args[1]) new_ppt = '';
+				else parsed_args[1] = new_ppt;
+				if (new_cfg || new_ppt) {
+					callback && callback(new_cfg, new_ppt);
+				}
+			}
+
+			function showProperties() {
+				close_window();
+				props_callback && props_callback();
+			}
+
+			window.btn_add.onclick = function () {
+				new_id++;
+				switch (cur.page) {
+					case 'views':
+						var list = document.getElementById("view").querySelectorAll("[id^='view_cnt']");
+						if (list.length > 98) return; // no limited to 100
+						list[list.length - 1].insertAdjacentHTML("beforebegin", '<div class="input_cnt1" id="view_cnt'+new_id+'"><input id="viewCheckbox'+ new_id+'" name="viewCheckbox" style="'+cbox+'" type="checkbox" /><input id="view_container'+new_id+'" name="view_name" class="input21" value="" /><input name="input_view" class="input71" value="" /></div>');
+						document.getElementById("viewCheckbox" + new_id).checked = true;
+						document.getElementById("view_container" + new_id).focus();
+						break;
+					case 'filters':
+						var list = document.getElementById("filter").querySelectorAll("[id^='filter_cnt']");
+						if (list.length > 98) return; // no limited to 100
+						list[list.length - 1].insertAdjacentHTML("beforebegin", '<div class="input_cnt1" id="filter_cnt'+new_id+'"><input id="filterCheckbox'+ new_id+'" name="filterCheckbox" style="'+cbox+'" type="checkbox" /><input id="filter_container'+new_id+'" name="filter_name" class="input21" value="" /><input name="input_filter" class="input71" value="" /></div>');
+						document.getElementById("filterCheckbox" + new_id).checked = true;
+						document.getElementById("filter_container" + new_id).focus();
+						break;
+				}
+			}
+
+			window.btn_up.onclick = function () {
+				switch (cur.page) {
+					case 'views':
+						if (ix.view == -1) break;
+						var el = document.getElementById("view_cnt" + ix.view);
+						moveUp(el);
+						break;
+					case 'filters':
+						if (ix.filter == -1) break;
+						var el = document.getElementById("filter_cnt" + ix.filter);
+						moveUp(el);
+						break;
+				}
+			}
+
+			window.btn_down.onclick = function () {
+				switch (cur.page) {
+					case 'views':
+						if (ix.view == -1) break;
+						var el = document.getElementById("view_cnt" + ix.view);
+						moveDown(el);
+						break;
+					case 'filters':
+						if (ix.filter == -1) break;
+						var el = document.getElementById("filter_cnt" + ix.filter);
+						moveDown(el);
+						break;
+				}
+			}
+
+			window.btn_delete.onclick = function () {
+				switch (cur.page) {
+					case 'views':
+						if (ix.view == -1) break;
+						var next = document.getElementById("view_cnt" + ix.view).nextSibling;
+						if (next && next.id == "view_cnt_folderView") next = document.getElementById("view_cnt" + ix.view).previousSibling;
+						remove(document.getElementById("view_cnt" + ix.view));
+						if (next) ix.view = next.id.replace('view_cnt', '');
+						if (next) next.style["background"] = "lightgreen";
+						break;
+					case 'filters':
+						if (ix.filter == -1) break;
+						var next = document.getElementById("filter_cnt" + ix.filter).nextSibling;
+						if (next && next.id == "filter_cnt_menuName") next = document.getElementById("filter_cnt" + ix.filter).previousSibling;
+						remove(document.getElementById("filter_cnt" + ix.filter));
+						if (next) ix.filter = next.id.replace('filter_cnt', '');
+						if (next) next.style["background"] = "lightgreen";
+						break;
+				}
+			}
+
+			function setInputs(page, value) {
+				var inputs = [];
+				if (page == 'all' || page == 'views') {
+					inputs = document.getElementsByName('view_name');
+					for (i = 0; i < inputs.length; i++) {
+						inputs[i].value = cfg[0][i].name;
+					}
+					inputs = document.getElementsByName('input_view');
+					for (i = 0; i < inputs.length; i++) {
+						inputs[i].value = cfg[0][i].type;
+					}
+				}
+
+				if (page == 'all' || page == 'filters') {
+					inputs = document.getElementsByName('filter_name');
+					for (i = 0; i < inputs.length; i++) {
+						inputs[i].value = cfg[1][i].name;
+					}
+					inputs = document.getElementsByName('input_filter');
+					for (i = 0; i < inputs.length; i++) {
+						inputs[i].value = cfg[1][i].type;
+					}
+				}
+
+				var nm = page.toString()+'_input', inputs = document.querySelectorAll(page == 'all' ? "[name$='_input']" : "[name="+nm+"]");
+				for (i = 0; i < inputs.length; i++) {
+					inputs[i].value = libSet[input[page].name[i] + '_internal'][value];
+				}
+
+				window.coverFormat_container1.parentNode.disabled = libSet['theme_internal'].value != 4;
+			}
+
+			window.btn_resetPage.onclick = function () {
+				var v = '';
+				switch(cur.page) {
+					case 'views':
+						cfg[0] = [];
+						for (i = 0; i < cfg[2].length; i++) {v = cfg[2][i]; cfg[0][i] = {name:v.name, type:v.type, menu:v.menu}}
+						setViews(true);
+						break;
+					case 'filters':
+						cfg[1] = [];
+						for (i = 0; i < cfg[3].length; i++) {v = cfg[3][i]; cfg[1][i] = {name:v.name, type:v.type, menu:v.menu}}
+						setFilters(true);
+						break;
+				}
+				setCheckboxes(cur.page, 'default_value');
+				setInputs(cur.page, 'default_value');
+				setRadioBtns(cur.page, 'default_value');
+				if (cur.page == 'behaviour') {
+					setClickAction(libSet['clickAction_internal'].default_value);
+					setDblClickAction(libSet['dblClickAction_internal'].default_value);
+					setKeyAction(libSet['keyAction_internal'].default_value);
+
+					setRoot(libSet['rootNode_internal'].default_value);
+					setNode(libSet['nodeStyle_internal'].default_value);
+					setItemCounts(libSet['nodeCounts_internal'].default_value);
+					setHoverBg(libSet['highLightRow_internal'].default_value);
+
+					setSbarShow(libSet['sbarShow_internal'].default_value);
+					setsbarType(libSet['sbarType_internal'].default_value);
+					setSbarCol(libSet['sbarCol_internal'].default_value);
+					setSbarIcon(libSet['highLightRow_internal'].default_value);
+
+					setSearch(libSet['searchSend_internal'].default_value);
+				}
+				if (cur.page == 'display') {
+					setTheme(libSet['theme_internal'].default_value);
+				}
+				if (cur.page == 'albumArt') {
+					window.rootStub_dropdown.innerHTML = '<b>全部音乐:</b> ' + libSet.curRootImg_internal.default_value;
+					libSet.curRootImg_internal.value = libSet.curRootImg_internal.default_value;
+					window.noArtistStub_dropdown.innerHTML = '<b>无艺术家:</b> ' + libSet.curNoArtistImg_internal.default_value;
+					libSet.curNoArtistImg_internal.value = libSet.curNoArtistImg_internal.default_value;
+					window.noCoverStub_dropdown.innerHTML = '<b>无封面:</b> ' + libSet.curNoCoverImg_internal.default_value;
+					libSet.curNoCoverImg_internal.value = libSet.curNoCoverImg_internal.default_value;
+					setOverlay(libSet['itemOverlayType_internal'].default_value);
+					setTextAlign(libSet['albumArtTextAlign_internal'].default_value);
+					setthumbSize(libSet['thumbNailSize_internal'].default_value);
+				}
+				if (cur.page == 'custom') setCustomColours('default_value');
+			}
+
+			window.btn_reset.onclick = function () {
+				var msg = '这将重置 Library Tree 的所有设置为默认值；包括“查看”和“筛选”在内的所有设置都将丢失。\\n\\n设置存储在面板属性中，它有备份选项，可以通过 Shift + 右键点击面板打开。\\n\\n继续重置？';
+				var r = window.confirm(msg);
+				if (r == true) {
+					var new_cur = JSON.stringify(cur);
+					if (new_cur == parsed_args[2]) new_cur = '';
+					close_window();
+					callback && callback('', '', 'reset', new_cur);
+				}
+			}
+
+			document.onkeydown = function () {
+				if (window.event.keyCode == 13 && window.btn_ok.onclick) {
+					window.btn_ok.onclick();
+				}
+			}
+
+			document.onkeyup = function () {
+				set_btn_apply_state();
+			}
+
+			document.onclick = function () {
+				var idx = document.activeElement.id;
+				var clickedButton = /btn_ok|btn_add|btn_delete|btn_down|btn_up/.test(idx);
+				if (!clickedButton) {
+					switch (cur.page) {
+						case 'views':
+							var list = document.getElementById("view").querySelectorAll("[id^='view_cnt']");
+							for (i= 0; i < list.length; i++) list[i].style["background"] = "none";
+							var par = document.activeElement.parentElement;
+							var activate = /view_cnt/.test(par.id) && !/folderView/.test(par.id);
+							if (!activate) ix.view = -1;
+							else {
+								ix.view = par.id.replace('view_cnt', '');
+								par.style["background"] = "lightgreen";
+							}
+							break;
+						case 'filters':
+							var list = document.getElementById("filter").querySelectorAll("[id^='filter_cnt']")
+							for (i= 0; i < list.length; i++) list[i].style["background"] = "none";
+							var par = document.activeElement.parentElement;
+							var activate = /filter_cnt/.test(par.id) && !/menuName/.test(par.id);
+							if (!activate) ix.filter = -1;
+							else {
+								ix.filter = par.id.replace('filter_cnt', '');
+								par.style["background"] = "lightgreen";
+							}
+							break;
+					}
+				}
+				set_btn_add_state();
+				set_btn_apply_state();
+				set_btn_del_state();
+				set_btn_dn_state();
+				set_btn_up_state();
+				textChange();
+				hide();
+			}
+
+			window.btn_cancel.onclick = function () {
+				var new_cur = JSON.stringify(cur);
+				if (new_cur == parsed_args[2]) new_cur = '';
+				callback && callback('', '', '', new_cur);
+				close_window();
+			}
+
+			var divToggleVis = document.getElementById('help_text');
+			var help_btn = document.getElementById('help_button');
+
+			help_btn.onclick = function() {
+				if (divToggleVis.style.display === 'none') {
+					divToggleVis.style.display = 'block';
+					help_btn.innerHTML = '隐藏帮助';
+				} else {
+					divToggleVis.style.display = 'none';
+					help_btn.innerHTML = '显示帮助';
+				}
+			}
+
+			function showModeHelp() {
+				var divToggleMode = document.getElementById('mode_text');
+				if (divToggleMode.style.display === 'none') {
+					divToggleMode.style.display = 'block';
+					divToggleMode.scrollIntoView();
+				} else {
+					divToggleMode.style.display = 'none';
+				}
+			}
+
+			var divToggleSyn = document.getElementById('syntax_help');
+			var syntax_btn = document.getElementById('syntax_button');
+
+			syntax_btn.onclick = function() {
+				if (divToggleSyn.style.display === 'none') {
+					divToggleSyn.style.display = 'block';
+					syntax_btn.innerHTML = '隐藏扩展语法帮助';
+				} else {
+					divToggleSyn.style.display = 'none';
+					syntax_btn.innerHTML = '显示新的分面 & 扩展语法帮助';
+				}
+			}
+
+			function toggle(item) {
+				if (window[item].style.display != 'block') window[item].style.display = 'block'
+				else window[item].style.display = 'none';
+			}
+
+			var h = [
+				['altClick_dropdown', 'altClick'],
+				['click_dropdown', 'click'],
+				['dblClick_dropdown', 'dblClick'],
+				['itemCounts_dropdown', 'itemCounts'],
+				['mbtnClick_dropdown', 'mbtnClick'],
+				['keystroke_dropdown', 'keystroke'],
+				['noArtistStub_dropdown', 'noArtistStub'],
+				['noCoverStub_dropdown', 'noCoverStub'],
+				['node_dropdown', 'node'],
+				['overlay_dropdown', 'overlay'],
+				['root_dropdown', 'root'],
+				['rootStub_dropdown', 'rootStub'],
+				['sbarShow_dropdown', 'sbarShow'],
+				['sbarType_dropdown', 'sbarType'],
+				['sbarCol_dropdown', 'sbarCol'],
+				['sbarIcon_dropdown', 'sbarIcon'],
+				['search_dropdown', 'search'],
+				['showHl_dropdown', 'showHl'],
+				['textAlign_dropdown', 'textAlign'],
+				['theme_dropdown', 'themeBg'],
+				['thumbSize_dropdown', 'thumbSize']
+			];
+
+			function hide() {
+				var id = document.activeElement.id;
+				for (i = 0; i < h.length; i++) {
+					if (id != h[i][0]) window[h[i][1]].style.display = 'none';
+				}
+			}
+
+			window.onunload = function () {
+				if (!is_closed_manually) {
+					var new_cur = JSON.stringify(cur);
+					if (new_cur != parsed_args[2]) callback && callback('', '', '', new_cur);
+				}
+			}
+
+			window.document.body.focus();
+			document.getElementById("btn_ok").focus();
+		</script>
+	</body>
+	</html>

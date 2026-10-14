@@ -1,2 +1,5 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# 保持上游源码字节与行尾，避免首次提交自动转换。
+scripts/** -text
+*.md text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf

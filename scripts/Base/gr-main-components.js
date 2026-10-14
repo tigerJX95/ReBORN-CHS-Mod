@@ -1,0 +1,4767 @@
+﻿////////////////////////////////////////////////////////////////////////
+// * Georgia-ReBORN: 一个简洁、全动态的颜色重生 - Foobar2000 播放器 * //
+// * 类型:           Georgia-ReBORN 主要组件                        * //
+// * 作者:           TT                                             * //
+// * 网站:           https://github.com/TT-ReBORN/Georgia-ReBORN    * //
+// * 版本:           3.0-x64-DEV                                    * //
+// * 开发开始:       22-12-2017                                     * //
+// * 最后更改:       15-07-2026                                     * //
+////////////////////////////////////////////////////////////////////////
+
+
+'use strict';
+
+
+///////////////////////
+// * IMAGE CACHING * //
+///////////////////////
+/**
+ * A class that creates album art and playlist thumbnails cache.
+ */
+class ArtCache {
+	/**
+	 * Creates the `ArtCache` instance.
+	 * The ArtCache is a Least-Recently Used cache meaning that each cache hit will bump
+	 * that image to be the last image to be removed from the cache (if maxCacheSize is exceeded).
+	 * @param {number} maxCacheSize - The maximum number of images to keep in the cache.
+	 */
+	constructor(maxCacheSize = 15) {
+		/**
+		 * @typedef {object} ArtCacheObj
+		 * @property {GdiBitmap} image - The GDI+ bitmap image object cached.
+		 * @property {number} filesize - The size of the image file in bytes.
+		 */
+
+		/** @private @type {object.<string, ArtCacheObj>} The primary cache storing image objects. */
+		this.cache = {};
+		/** @private @type {object.<string, ArtCacheObj>} The secondary cache used mainly for disc art covers to prevent overwriting album art with masked images. */
+		this.cache2 = {};
+		/** @private @type {object.<string, ArtCacheObj>} The tertiary cache used for the embedded CD/disc art picture, kept fully independent from cache2 (discArtCover) even though both are keyed by the same metadb.Path. */
+		this.cache3 = {};
+		/** Native decodes keep their credits until completion, even across cache clears. */
+		this.imageReadActive = 0;
+		this.imageReadPending = new Map();
+		this.imageReadsClosed = false;
+		/** @private @type {string[]} The array of cache keys in the order of their usage. */
+		this.cacheIndexes = [];
+		/** @private @type {string[]} The array of secondary cache keys in the order of their usage. */
+		this.cacheIndexes2 = [];
+		/** @private @type {string[]} The array of tertiary cache keys in the order of their usage. */
+		this.cacheIndexes3 = [];
+		/** @private @type {number} The maximum number of images that can be stored in the primary cache. */
+		this.cacheMaxSize = maxCacheSize;
+		/** @private @type {number} The maximum number of images that can be stored in the secondary cache. */
+		this.cacheMaxSize2 = maxCacheSize;
+		/** @private @type {number} The maximum number of images that can be stored in the tertiary cache. */
+		this.cacheMaxSize3 = maxCacheSize;
+
+		/** @private @type {number} The maximum width an image can be displayed. */
+		this.imgMaxWidth = SCALE(1440);
+		/** @private @type {number} The maximum height an image can be displayed. */
+		this.imgMaxHeight = SCALE(872);
+
+		/**
+		 * Because foobar x86 can allocate only 4 gigs memory, we must limit disc art res for 4K when using
+		 * high grSet.spinDiscArtImageCount, i.e 90 (4 degrees), 120 (3 degrees), 180 (2 degrees) to prevent crash.
+		 * When SMP has x64 support, we could try to increase this limit w (1836px max possible res for 4K).
+		 * @public @type {number}
+		 */
+		this.discArtImgMaxRes = this.setDiscArtMaxResolution(grSet.spinDiscArtImageCount);
+	}
+
+	// * PUBLIC METHODS * //
+	// #region PUBLIC METHODS
+	/** Artwork/backgrounds share two native readers; only the latest queued request per owner survives. */
+	loadImageAsync(location, owner, isCurrent) {
+		if (this.imageReadsClosed || !location) return Promise.resolve(null);
+		return new Promise((resolve, reject) => {
+			const old = this.imageReadPending.get(owner);
+			if (old) old.resolve(null);
+			this.imageReadPending.set(owner, { location, isCurrent, resolve, reject });
+			this.pumpImageReads();
+		});
+	}
+
+	pumpImageReads() {
+		while (!this.imageReadsClosed && this.imageReadActive < 2 && this.imageReadPending.size) {
+			const [owner, job] = this.imageReadPending.entries().next().value;
+			this.imageReadPending.delete(owner);
+			try { if (!job.isCurrent()) { job.resolve(null); continue; } }
+			catch (e) { job.reject(e); continue; }
+			this.imageReadActive++;
+			(async () => {
+				try {
+					const image = await gdi.LoadImageAsyncV2(window.ID, job.location);
+					job.resolve(!this.imageReadsClosed && job.isCurrent() ? image : null);
+				} catch (e) { job.reject(e); }
+				finally { this.imageReadActive--; this.pumpImageReads(); }
+			})();
+		}
+	}
+
+	shutdownImageReads() {
+		this.imageReadsClosed = true;
+		for (const job of this.imageReadPending.values()) job.resolve(null);
+		this.imageReadPending.clear();
+		this.clear();
+	}
+
+	/**
+	 * Gets the cache object, its usage-order index array, and its max size for the given cache pool.
+	 * @param {number} cacheIndex - The cache index from 1-3:
+	 * - 1 (primary = album art),
+	 * - 2 (secondary = discArtCover),
+	 * - 3 (tertiary = embedded disc art).
+	 *
+	 * Anything other than 1 or 3 falls back to the secondary pool.
+	 * @returns {{cache: object.<string, ArtCacheObj>, cacheIndexes: string[], cacheMaxSize: number}} The matching cache pool.
+	 */
+	getCachePool(cacheIndex) {
+		if (cacheIndex === 1) {
+			return {
+				cache: this.cache,
+				cacheIndexes: this.cacheIndexes,
+				cacheMaxSize: this.cacheMaxSize
+			};
+		}
+		if (cacheIndex === 3) {
+			return {
+				cache: this.cache3,
+				cacheIndexes: this.cacheIndexes3,
+				cacheMaxSize: this.cacheMaxSize3
+			};
+		}
+		return {
+			cache: this.cache2,
+			cacheIndexes: this.cacheIndexes2,
+			cacheMaxSize: this.cacheMaxSize2
+		};
+	}
+
+	/**
+	 * Gets cached image if it exists under the location string. If image is found, move it's index to the end of the cacheIndexes.
+	 * @param {string} location - The string value to check if image is cached under.
+	  * @param {number} cacheIndex - The first, second, or third index of the cache to check.
+	 * @returns {GdiBitmap|null} The cached image, or null if not found or the file does not exist.
+	 */
+	getImage(location, cacheIndex = 1) {
+		const { cache, cacheIndexes } = this.getCachePool(cacheIndex);
+		const entry = cache[location];
+		if (!entry) return null;
+		const pathIndex = cacheIndexes.indexOf(location);
+		if (pathIndex >= 0) cacheIndexes.splice(pathIndex, 1);
+
+		// Generated keys and embedded artwork have no disk file to validate.
+		let valid = !!entry.virtual;
+		if (!valid) {
+			try { valid = fso.FileExists(location) && fso.GetFile(location).Size === entry.filesize; }
+			catch (e) { /* File may disappear between the existence check and stat. */ }
+		}
+		if (valid) {
+			cacheIndexes.push(location);
+			grm.debug.debugLog('封面缓存 => 缓存命中:', location);
+			return entry.image;
+		}
+
+		grm.debug.debugLog(`封面缓存 => 缓存条目已过时或文件不可用: ${location}`);
+		delete cache[location]; // Was removed from cacheIndexes already
+
+		return null;
+	}
+
+	/**
+	 * Gets and optionally logs the size of an image or all images in the caches if cacheIndex is 0.
+	 * @param {string|null} location - The location string of the image to check. If null, process all images in the specified cache or all three if cacheIndex is 0.
+	 * @param {number} cacheIndex - The index of the cache to check. 0 for all three, 1 for the first, 2 for the second, 3 for the third. Defaults to 1.
+	 * @param {boolean} logSize - Whether to log the size(s) to the console. Defaults to false.
+	 * @returns {number|null|object} The size of the image in bytes, all images sizes if location is null and cacheIndex is specified, or null if the image is not found.
+	 * @example
+	 * - Get size of a specific image in cache 1: getImageSize('path/to/img.jpg', 1);
+	 * - Get sizes of all images in cache 1: getImageSize(null, 1, true);
+	 * - Get sizes of all images in all caches: getImageSize(null, 0, true);
+	 */
+	getImageSize(location, cacheIndex = 1, logSize = false) {
+		const processCache = (cache, prefix = '') => {
+			const sizes = {};
+			for (const [loc, cacheObj] of Object.entries(cache)) {
+				const formattedSize = FormatSize(cacheObj.filesize);
+				sizes[loc] = formattedSize;
+				if (logSize) {
+					console.log(`封面缓存 => ${prefix}图像在 '${loc}' 大小: ${formattedSize}`);
+				}
+			}
+			return sizes;
+		};
+
+		if (cacheIndex === 0) { // If cacheIndex is 0, process all three caches
+			const sizes1 = processCache(this.cache, '缓存 1 ');
+			const sizes2 = processCache(this.cache2, '缓存 2 ');
+			const sizes3 = processCache(this.cache3, '缓存 3 ');
+			return { ...sizes1, ...sizes2, ...sizes3 }; // Merge results from all caches
+		}
+
+		const { cache } = this.getCachePool(cacheIndex);
+
+		if (location === null) { // If location is null, process all images in the specified cache.
+			return processCache(cache);
+		}
+		else if (cache[location]) { // Process a specific image in the specified cache.
+			const formattedSize = FormatSize(cache[location].filesize);
+			if (logSize) {
+				console.log(`封面缓存 => 图像在 '${location}' 大小: ${formattedSize}`);
+			}
+			return formattedSize;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Gets and optionally logs the total size of the cached images.
+	 * If cacheIndex is 0, calculates for all three caches combined.
+	 * @param {number} cacheIndex - The index of the cache to calculate size for. If 0, calculates for all three caches.
+	 * @param {boolean} logSizes - Whether to log individual image sizes to the console.
+	 * @returns {number} The total size of the cache or caches in bytes.
+	 * @example
+	 * - Get total size of cache 1: getTotalCacheSize(1, true);
+	 * - Get total size of all caches combined: getTotalCacheSize(0, true);
+	 */
+	getTotalCacheSize(cacheIndex, logSizes = false) {
+		let totalSize = 0;
+
+		const calculateAndLogSize = (cache, cacheName = '') => {
+			for (const [location, cacheObj] of Object.entries(cache)) {
+				totalSize += cacheObj.filesize;
+				if (logSizes) {
+					const formattedSize = FormatSize(cacheObj.filesize);
+					console.log(`封面缓存 => ${cacheName} 图像在 '${location}' 大小: ${formattedSize}`);
+				}
+			}
+		};
+
+		if (cacheIndex === 0) { // If cacheIndex is 0, process all three caches
+			calculateAndLogSize(this.cache, '缓存 1');
+			calculateAndLogSize(this.cache2, '缓存 2');
+			calculateAndLogSize(this.cache3, '缓存 3');
+		} else {
+			const { cache } = this.getCachePool(cacheIndex);
+			calculateAndLogSize(cache, `缓存 ${cacheIndex}`);
+		}
+
+		const cacheLabel = cacheIndex === 0 ? '所有缓存总计大小' : `缓存总计大小 ${cacheIndex}`;
+		const totalFormattedSize = FormatSize(totalSize);
+		if (logSizes) console.log(`封面缓存 => ${cacheLabel}: ${totalFormattedSize}`);
+
+		return totalFormattedSize;
+	}
+
+	/**
+	 * Sets the maximum resolution for disc art based on the spinDiscArtImageCount.
+	 * @param {number} spinDiscArtImageCount - The count for spinning disc art images.
+	 * @returns {number} The maximum resolution for the disc art image.
+	 */
+	setDiscArtMaxResolution(spinDiscArtImageCount = 72) {
+		const maxResByImgCount = {
+			36:  1500,
+			45:  1500,
+			60:  1400,
+			72:  1400,
+			90:  1300,
+			120: 1200,
+			180: 1000
+		};
+
+		// FIX14: custom counts (including 360) also require a finite resolution.
+		return Math.min(1024, maxResByImgCount[spinDiscArtImageCount] || 1024);
+	}
+
+	/**
+	 * Adds a rescaled image to the cache under string `location` and returns the cached image.
+	 * @param {GdiBitmap} img - The image object to cache.
+	 * @param {string} location - The string value to cache image under. Does not need to be a path.
+	 * @param {number} cacheIndex - The first, second, or third index of the cache to check.
+	 * @returns {GdiBitmap} The image stored in the cache at the specified location.
+	 * If there is no image in the cache at that location, it returns the original image passed as a parameter.
+	 */
+	encache(img, location, cacheIndex = 1) {
+		const { cache, cacheIndexes, cacheMaxSize } = this.getCachePool(cacheIndex);
+
+		try {
+			let { Width: w, Height: h } = img;
+
+			// Scale image
+			if (w > this.imgMaxWidth || h > this.imgMaxHeight) {
+				const scaleFactor = Math.max(w / this.imgMaxWidth, h / this.imgMaxHeight);
+				w /= scaleFactor;
+				h /= scaleFactor;
+			}
+
+			// Embedded art and generated inverse-logo keys need not be real files.
+			let filesize = 0;
+			let virtual = false;
+			try { filesize = fso.GetFile(location).Size; } catch (e) { virtual = true; }
+			if (w * h > 4000000) { const scale = Math.sqrt(4000000 / (w * h)); w *= scale; h *= scale; }
+			w = Math.max(1, Math.floor(w)); h = Math.max(1, Math.floor(h));
+			cache[location] = { image: img.Resize(w, h), filesize, virtual };
+			img = null;
+
+			// Update cache order
+			const pathIndex = cacheIndexes.indexOf(location);
+			if (pathIndex !== -1) {
+				cacheIndexes.splice(pathIndex, 1); // Remove from middle of cache and put on end
+			}
+			cacheIndexes.push(location);
+
+			// Maintain cache size
+			// Native bitmap storage is Width*Height*4, not the compressed file size.
+			let pixels = cacheIndexes.reduce((sum, key) => sum + (cache[key]?.image ? cache[key].image.Width * cache[key].image.Height : 0), 0);
+			while (cacheIndexes.length > 1 && (cacheIndexes.length > cacheMaxSize || pixels > 8000000)) {
+				const remove = cacheIndexes.shift();
+				pixels -= cache[remove]?.image ? cache[remove].image.Width * cache[remove].image.Height : 0;
+				grm.debug.debugLog('封面缓存 => 已从缓存移除图片:', remove);
+				delete cache[remove];
+			}
+		}
+		catch (e) {
+			// Do not console.log inverted band logo and label images in the process of being created
+			grm.ui.bandLogoInverted && console.log(`\n封面缓存 => <错误: 无法正确解析图片: ${location}>\n`);
+		}
+
+		return cache[location] ? cache[location].image : img;
+	}
+
+	/**
+	 * Completely clears all cached entries and releases memory held by scaled bitmaps.
+	 */
+	clear() {
+		if (grCfg.settings.showDebugLog) {
+			grm.debug.debugLog(`封面缓存 => 缓存 1 缓存总计大小: ${this.getTotalCacheSize(1, false)}`);
+			grm.debug.debugLog(`封面缓存 => 缓存 2 缓存总计大小: ${this.getTotalCacheSize(2, false)}`);
+			grm.debug.debugLog(`封面缓存 => 缓存 3 缓存总计大小: ${this.getTotalCacheSize(3, false)}`);
+			grm.debug.debugLog(`封面缓存 => 已清除 缓存总计大小: ${this.getTotalCacheSize(0, false)}`);
+		}
+
+		const clearCache = (cacheIndexes, cache) => {
+			for (const index of cacheIndexes) {
+				delete cache[index];
+			}
+			cacheIndexes.length = 0;
+		};
+
+		clearCache(this.cacheIndexes, this.cache);
+		clearCache(this.cacheIndexes2, this.cache2);
+		clearCache(this.cacheIndexes3, this.cache3);
+	}
+	// #endregion
+}
+
+
+/**
+ * A class that creates background images for the Playlist, Library, Biography or Lyrics.
+ */
+class BackgroundImage {
+	/**
+	 * Creates the `BackgroundImage` instance.
+	 */
+	constructor() {
+		// * BACKGROUND PANEL IMAGES * //
+		// #region BACKGROUND PANEL IMAGES
+		/** @public @type {GdiBitmap|null} The background image used for the Playlist. */
+		this.playlistBgImg = null;
+		/** @public @type {GdiBitmap|null} The background image used for the Library. */
+		this.libraryBgImg = null;
+		/** @public @type {GdiBitmap|null} The background image used for the Biography. */
+		this.biographyBgImg = null;
+		/** @public @type {GdiBitmap|null} The background image used for the Lyrics. */
+		this.lyricsBgImg = null;
+		// #endregion
+
+		// * ARTIST IMAGES * //
+		// #region ARTIST IMAGES
+		/** @public @type {GdiBitmap|null} The artist background image for the Playlist. */
+		this.artistBgImgPlaylist = null;
+		/** @public @type {GdiBitmap|null} The artist background image for the Library. */
+		this.artistBgImgLibrary = null;
+		/** @public @type {GdiBitmap|null} The artist background image for the Biography. */
+		this.artistBgImgBiography = null;
+		/** @public @type {GdiBitmap|null} The artist background image for the Lyrics. */
+		this.artistBgImgLyrics = null;
+		/** @public @type {GdiBitmap[]} The artist list of playlist background images. */
+		this.artistImgListPlaylist = [];
+		/** @public @type {GdiBitmap[]} The artist list of library background images. */
+		this.artistImgListLibrary = [];
+		/** @public @type {GdiBitmap[]} The artist list of biography background images. */
+		this.artistImgListBiography = [];
+		/** @public @type {GdiBitmap[]} The artist list of lyrics background images. */
+		this.artistImgListLyrics = [];
+		/** @public @type {number} The artist index of the currently displayed background image for the Playlist. */
+		this.artistIdxPlaylist = 0;
+		/** @public @type {number} The artist index of the currently displayed background image for the Library. */
+		this.artistIdxLibrary = 0;
+		/** @public @type {number} The artist index of the currently displayed background image for the Biography. */
+		this.artistIdxBiography = 0;
+		/** @public @type {number} The artist index of the currently displayed background image for the Lyrics. */
+		this.artistIdxLyrics = 0;
+		/** @public @type {number} The artist index of the cached biography artist image for the Playlist. */
+		this.artistIdxCachedPlaylist = -1;
+		/** @public @type {number} The artist index of the cached biography artist image for the Library. */
+		this.artistIdxCachedLibrary = -1;
+		/** @public @type {number} The artist index of the cached biography artist image for the Biography. */
+		this.artistIdxCachedBiography = -1;
+		/** @public @type {number} The artist index of the cached biography artist image for the Lyrics. */
+		this.artistIdxCachedLyrics = -1;
+		// #endregion
+
+		// * ALBUM IMAGES * //
+		// #region ALBUM IMAGES
+		/** @public @type {GdiBitmap|null} The album background image for the Playlist. */
+		this.albumBgImgPlaylist = null;
+		/** @public @type {GdiBitmap|null} The album background image for the Library. */
+		this.albumBgImgLibrary = null;
+		/** @public @type {GdiBitmap|null} The album background image for the Biography. */
+		this.albumBgImgBiography = null;
+		/** @public @type {GdiBitmap|null} The album background image for the Lyrics. */
+		this.albumBgImgLyrics = null;
+		/** @public @type {GdiBitmap[]} The album list of playlist background images. */
+		this.albumImgListPlaylist = [];
+		/** @public @type {GdiBitmap[]} The album list of library background images. */
+		this.albumImgListLibrary = [];
+		/** @public @type {GdiBitmap[]} The album list of biography background images. */
+		this.albumImgListBiography = [];
+		/** @public @type {GdiBitmap[]} The album list of lyrics background images. */
+		this.albumImgListLyrics = [];
+		/** @public @type {number[]} The album art image index: 0 for Front, 1 for Back, and 4 for Artist. */
+		this.albumArtIdx = [AlbumArtId.Front, AlbumArtId.Back, AlbumArtId.Artist];
+		/** @public @type {number} The album index of the currently displayed background image for the Playlist. */
+		this.albumIdxPlaylist = 0;
+		/** @public @type {number} The album index of the currently displayed background image for the Library. */
+		this.albumIdxLibrary = 0;
+		/** @public @type {number} The album index of the currently displayed background image for the Biography. */
+		this.albumIdxBiography = 0;
+		/** @public @type {number} The album index of the currently displayed background image for the Lyrics. */
+		this.albumIdxLyrics = 0;
+		/** @public @type {number} The album index of the cached album background image for the Playlist. */
+		this.albumIdxCachedPlaylist = -1;
+		/** @public @type {number} The album index of the cached album background image for the Library. */
+		this.albumIdxCachedLibrary = -1;
+		/** @public @type {number} The album index of the cached album background image for the Biography. */
+		this.albumIdxCachedBiography = -1;
+		/** @public @type {number} The album index of the cached album background image for the Lyrics. */
+		this.albumIdxCachedLyrics = -1;
+		// #endregion
+
+		// * CUSTOM IMAGES * //
+		// #region CUSTOM IMAGES
+		/** @public @type {GdiBitmap|null} The custom background image for the Playlist. */
+		this.customBgImgPlaylist = null;
+		/** @public @type {GdiBitmap|null} The custom background image for the Library. */
+		this.customBgImgLibrary = null;
+		/** @public @type {GdiBitmap|null} The custom background image for the Biography. */
+		this.customBgImgBiography = null;
+		/** @public @type {GdiBitmap|null} The custom background image for the Lyrics. */
+		this.customBgImgLyrics = null;
+		/** @public @type {GdiBitmap[]} The custom list of playlist custom background images. */
+		this.customImgListPlaylist = [];
+		/** @public @type {GdiBitmap[]} The custom list of library custom background images. */
+		this.customImgListLibrary = [];
+		/** @public @type {GdiBitmap[]} The custom list of biography custom background images. */
+		this.customImgListBiography = [];
+		/** @public @type {GdiBitmap[]} The custom list of lyrics custom background images. */
+		this.customImgListLyrics = [];
+		/** @public @type {number} The custom index of the currently displayed custom background image for the Playlist. */
+		this.customIdxPlaylist = 0;
+		/** @public @type {number} The custom index of the currently displayed custom background image for the Library. */
+		this.customIdxLibrary = 0;
+		/** @public @type {number} The custom index of the currently displayed custom background image for the Biography. */
+		this.customIdxBiography = 0;
+		/** @public @type {number} The custom index of the currently displayed custom background image for the Lyrics. */
+		this.customIdxLyrics = 0;
+		/** @public @type {number} The custom index of the cached custom background image for the Playlist. */
+		this.customIdxCachedPlaylist = -1;
+		/** @public @type {number} The custom index of the cached custom background image for the Library. */
+		this.customIdxCachedLibrary = -1;
+		/** @public @type {number} The custom index of the cached custom background image for the Biography. */
+		this.customIdxCachedBiography = -1;
+		/** @public @type {number} The custom index of the cached custom background image for the Lyrics. */
+		this.customIdxCachedLyrics = -1;
+		// #endregion
+
+		// * STATE * //
+		// #region STATE
+		/** @public @type {Object} The background image fetching state for the Playlist, Library, and Lyrics. */
+		this.imgFetching = {};
+		this.bgImageEpoch = {};
+		this.backgroundClosed = false;
+		/** @public @type {Object} The background image cycle intervals for the Playlist, Library, and Lyrics. */
+		this.imgCycleIntervals = {};
+		// #endregion
+	}
+
+	// * PUBLIC METHODS * //
+	// #region PUBLIC METHODS
+	/**
+	 * Draws an artist, album or custom image on the Playlist, Library, Biography, or Lyrics background.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 * @param {object} img - The image object containing the image and other properties.
+	 * @param {string} scale - The scale mode ("default", "filled" or "stretched") to apply to the image.
+	 * @param {number} x - The x-coordinate where the image should be drawn.
+	 * @param {number} y - The y-coordinate where the image should be drawn.
+	 * @param {number} w - The width of the area to draw the image.
+	 * @param {number} h - The height of the area to draw the image.
+	 * @param {number} opacity - The opacity level to apply to the image.
+	 * @param {boolean} mask - Whether to apply a mask to the image.
+	 * @param {number} maskOffsetY - The y-offset for the mask.
+	 * @param {number} maskHeight - The height of the mask.
+	 */
+	drawBgImage(gr, img, scale, x, y, w, h, opacity, mask, maskOffsetY, maskHeight) {
+		if (!img || !img.image) return;
+
+		if (!img.scaled || img.scaledW !== w || img.scaledH !== h || img.scaledMode !== scale) {
+			img.scaled = ScaleImage(img.image, scale, x, y, w, h, 0, 0, img.image.Width, img.image.Height);
+
+			if (!img.scaled) return;
+
+			img.scaledW = w;
+			img.scaledH = h;
+			img.scaledMode = scale;
+			img.masked = null;
+		}
+
+		if (mask && !img.masked) {
+			img.masked = MaskImage(img.scaled, 0, maskOffsetY, img.scaled.Width, img.scaled.Height - maskHeight);
+		}
+
+		const finalImage = mask && img.masked ? img.masked : img.scaled;
+
+		if (finalImage) {
+			gr.DrawImage(finalImage, x, y, w, h, 0, 0, finalImage.Width, finalImage.Height, 0, opacity);
+		}
+	}
+
+	/**
+	 * Initializes the current background image by clearing the relevant caches and fetching a new image based on the source setting.
+	 * @param {string|false} panel - The panel ('playlist', 'library', 'biography, 'lyrics', or false for all)  in which the image is being requested.
+	 * @param {boolean} [clearCache] - Whether to clear the background image cache.
+	 *
+	 * The background image cache should be cleared when:
+	 * - The background image source is updated, clearing the previous source.
+	 * - The playback starts a new album, clearing the previous images.
+	 * - The player size changes, requiring a new scaling for the images.
+	 */
+	initBgImage(panel, clearCache) {
+		if (this.backgroundClosed) return;
+		if (clearCache) this.clearBgImageCache(panel);
+
+		if (panel && !grSet[`${panel}BgImg`]) return;
+
+		this.handleBgImageIndex(panel, 'getIndexes');
+
+		const displayPanel = {
+			playlist:  grm.ui.displayPlaylist,
+			library:   grm.ui.displayLibrary,
+			biography: grm.ui.displayBiography,
+			lyrics:    grm.ui.displayLyrics
+		};
+
+		const panelSize = {
+			playlist:  [pl.playlist.x - SCALE(1), pl.playlist.y - pl.plman.h, pl.playlist.w + SCALE(2), pl.playlist.h + pl.plman.h * 2],
+			library:   [lib.ui.x, lib.ui.y, lib.ui.w, lib.ui.h],
+			biography: [bio.ui.x, bio.ui.y, bio.ui.w, bio.ui.h],
+			lyrics:    [0, grm.ui.topMenuHeight, grm.ui.ww, grm.ui.wh - grm.ui.topMenuHeight - grm.ui.lowerBarHeight]
+		};
+
+		const panelToProcess = panel ? [panel] :
+			['playlist', 'library', 'biography', 'lyrics'].filter(p => grSet[`${p}BgImg`]);
+
+		for (const p of panelToProcess) {
+			const epoch = this.bgImageEpoch[p] || 0;
+			this.getBgImage(p).then(img => {
+				if (this.backgroundClosed || epoch !== (this.bgImageEpoch[p] || 0)) return;
+				if (img && img.image) {
+					if (!this[`${p}BgImg`] || this[`${p}BgImg`].image !== img.image) {
+						this[`${p}BgImg`] = img;
+					}
+					this.handleBgImageIndex(p, 'setIndexes');
+				}
+				if (displayPanel[p]) {
+					window.RepaintRect(...panelSize[p]);
+				}
+			});
+		}
+	}
+
+	/**
+	 * Initializes or clears the cycling of background images.
+	 */
+	initBgImageCycle() {
+		if (this.backgroundClosed) return;
+		for (const panel of ['playlist', 'library', 'biography', 'lyrics']) {
+			clearInterval(this.imgCycleIntervals[panel]);
+			this.imgCycleIntervals[panel] = null;
+
+			const enabled = grSet[`${panel}BgImg`];
+			const cycle = grSet[`${panel}BgImgCycle`];
+			const cycleTime = grSet[`${panel}BgImgCycleTime`];
+
+			if (!enabled || !cycle || !cycleTime) continue;
+
+			grm.debug.debugLog(`\n>>> 初始化图片 => 初始化循环 => 面板: ${CapitalizeString(panel)} - 循环时间: ${cycleTime} 秒 <<<\n`);
+			this.imgCycleIntervals[panel] = setInterval(() => {
+				this.cycleBgImage(panel, 1);
+			}, cycleTime * 1000);
+		}
+	}
+
+	/**
+	 * Cycles the background image for the specified panel.
+	 * @param {string} panel - The panel ('playlist', 'library', 'biography', 'lyrics') in which the image should be cycled.
+	 * @param {number} direction - The direction to cycle the images (1 for next, -1 for previous).
+	 */
+	cycleBgImage(panel, direction) {
+		if (this.backgroundClosed || this.imgFetching[panel]) return;
+
+		const imgKey = this.getBgImageSourceKeys(panel);
+
+		if (!imgKey) return;
+
+		const imgList = this[imgKey.imgList];
+
+		if (!imgList || !imgList.length) {
+			if (imgKey.imgType !== 'albumArt') return;
+
+			this[imgKey.imgIdx] = (this[imgKey.imgIdx] + direction + this.albumArtIdx.length) % this.albumArtIdx.length;
+			this.handleBgImageIndex(panel, 'setIndexes');
+			this.initBgImage(panel, true);
+			return;
+		}
+
+		if (imgList.length <= 1) return;
+
+		this[imgKey.imgIdx] = (this[imgKey.imgIdx] + direction + imgList.length) % imgList.length;
+		this.handleBgImageIndex(panel, 'setIndexes');
+
+		const epoch = this.bgImageEpoch[panel] || 0;
+		this.fetchBgImage(panel, imgList, imgKey.imgIdx, imgKey.bgImg, imgKey.bgImgIdx).then(() => {
+			if (!this.backgroundClosed && epoch === (this.bgImageEpoch[panel] || 0)) this.initBgImage(panel);
+		});
+	}
+
+	/**
+	 * Checks if the background image is cached, and updates the relevant properties if it is.
+	 * @param {string} panel - The panel ('playlist', 'library', 'biography', 'lyrics') in which the image is being requested.
+	 * @param {string} imgList - The name of the property in `this` that contains the image list.
+	 * @param {string} imgIdx - The name of the property in `this` that contains the current image index.
+	 * @param {string} bgImg - The name of the property in `this` that contains the cached image.
+	 * @param {string} bgImgIdx - The name of the property in `this` that contains the cached image index.
+	 * @returns {GdiBitmap|null} The cached background image, or null if not found.
+	 */
+	checkBgImageCache(panel, imgList, imgIdx, bgImg, bgImgIdx) {
+		const imgArray = this[imgList];
+		const imgArrayInvalid = !imgArray || !imgArray.length;
+
+		if (imgArrayInvalid) return null;
+
+		const currentIdx = this[imgIdx];
+		const currentIdxInvalid =  !Number.isInteger(currentIdx) || currentIdx < 0 || currentIdx >= imgArray.length;
+
+		if (currentIdxInvalid) return null;
+
+		const imgCached = grm.artCache.getImage(imgArray[currentIdx]);
+
+		if (imgCached) {
+			this[bgImg] = imgCached;
+			this[bgImgIdx] = currentIdx;
+			return imgCached;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Clears the background image cache. When a panel name is supplied only that panel's
+	 * data is cleared; omitting it (or passing a falsy value) performs a full clear of all panels.
+	 * @param {string} [panel] - The optional panel ('playlist', 'library', 'biography', 'lyrics') to scope the clear to.
+	 */
+	clearBgImageCache(panel) {
+		for (const p of panel ? [panel] : ['playlist', 'library', 'biography', 'lyrics']) {
+			this.bgImageEpoch[p] = (this.bgImageEpoch[p] || 0) + 1;
+		}
+		if (panel) {
+			const Panel = CapitalizeString(panel);
+
+			this[`${panel}BgImg`]         = null;
+			this[`artistBgImg${Panel}`]   = null;
+			this[`albumBgImg${Panel}`]    = null;
+			this[`customBgImg${Panel}`]   = null;
+			this[`artistImgList${Panel}`] = [];
+			this[`albumImgList${Panel}`]  = [];
+			this[`customImgList${Panel}`] = [];
+			this.imgFetching[panel]       = false;
+
+			this.handleBgImageIndex(panel, 'clearIndexes');
+
+			grm.debug.debugLog(`主要缓存 => ${Panel} 背景图像缓存已清除`);
+			return;
+		}
+
+		this.playlistBgImg  = null;
+		this.libraryBgImg   = null;
+		this.biographyBgImg = null;
+		this.lyricsBgImg    = null;
+
+		for (const panel of ['playlist', 'library', 'biography', 'lyrics']) {
+			const Panel = CapitalizeString(panel);
+			this[`artistBgImg${Panel}`]   = null;
+			this[`albumBgImg${Panel}`]    = null;
+			this[`customBgImg${Panel}`]   = null;
+			this[`artistImgList${Panel}`] = [];
+			this[`albumImgList${Panel}`]  = [];
+			this[`customImgList${Panel}`] = [];
+			this.imgFetching[panel]       = false;
+		}
+
+		this.handleBgImageIndex(false, 'clearIndexes');
+
+		grm.debug.debugLog('主要缓存 => 背景图片缓存已清除');
+	}
+
+	/**
+	 * Fetches a background image, either from cache or asynchronously, and updates the relevant properties.
+	 * @param {string} panel - The panel ('playlist', 'library', 'biography', 'lyrics') in which the image is being requested.
+	 * @param {string|string[]} imgList - The name of the property in `this` that contains the image list, or the image list array itself.
+	 * @param {string} imgIdx - The name of the property in `this` that contains the current image index.
+	 * @param {string} bgImg - The name of the property in `this` that contains the cached image.
+	 * @param {string} bgImgIdx - The name of the property in `this` that contains the cached image index.
+	 * @returns {Promise<{image: GdiBitmap|null}>} The background image object.
+	 */
+	fetchBgImage(panel, imgList, imgIdx, bgImg, bgImgIdx) {
+		if (this.backgroundClosed || this.imgFetching[panel]) {
+			return Promise.resolve({ image: null });
+		}
+
+		const imgArray = Array.isArray(imgList) ? imgList : this[imgList];
+
+		if (!imgArray || !imgArray.length) {
+			return Promise.resolve({ image: null });
+		}
+
+		this.imgFetching[panel] = true;
+
+		this[imgIdx] = Number.isInteger(this[imgIdx]) && this[imgIdx] >= 0 && this[imgIdx] < imgArray.length ? this[imgIdx] : 0;
+		const imgIdxLocal = this[imgIdx];
+		const imgPathIdx = imgArray[imgIdxLocal];
+		const epoch = this.bgImageEpoch[panel] || 0;
+		const isCurrent = () => !this.backgroundClosed && epoch === (this.bgImageEpoch[panel] || 0);
+
+		return grm.artCache.loadImageAsync(imgPathIdx, `background:${panel}`, isCurrent).then(img => {
+			if (!isCurrent()) return { image: null };
+			if (img) {
+				this[bgImg] = grm.artCache.encache(img, imgPathIdx);
+				this[bgImgIdx] = imgIdxLocal;
+				return { image: this[bgImg] };
+			}
+			return { image: null };
+		})
+		.catch(error => {
+			console.log(`\n>>> 背景图片 => 获取背景图片 => <错误: 无法正确解析图像: ${panel}:>\n`, error);
+			return { image: null };
+		})
+		.finally(() => {
+			if (isCurrent()) this.imgFetching[panel] = false;
+		});
+	}
+
+	/**
+	 * Fetches and caches embedded album art if available.
+	 * @param {string} panel - The panel ('playlist', 'library', 'biography', 'lyrics') in which the image is being requested.
+	 * @param {number} albumArtId - The album art id value.
+	 * @param {string} bgImg - The name of the property in `this` that contains the cached image.
+	 * @param {string} bgImgIdx - The name of the property in `this` that contains the cached image index.
+	 * @returns {Promise<{image: GdiBitmap|null}>} The embedded album art image object.
+	 */
+	fetchBgImageEmbedded(panel, albumArtId, bgImg, bgImgIdx) {
+		if (this.backgroundClosed || this.imgFetching[panel]) {
+			return Promise.resolve({ image: null });
+		}
+
+		const imgIdxLocal = this.albumArtIdx.includes(albumArtId) ? albumArtId : AlbumArtId.Front;
+
+		if (this[bgImgIdx] === imgIdxLocal && this[bgImg]) {
+			return Promise.resolve({ image: this[bgImg] });
+		}
+
+		this.imgFetching[panel] = true;
+
+		try {
+			const metadb = grm.ui.initMetadb();
+
+			if (!metadb) {
+				return Promise.resolve({ image: null });
+			}
+
+			const albumArt = utils.GetAlbumArtV2(metadb, imgIdxLocal);
+
+			if (albumArt) {
+				this[bgImg] = grm.artCache.encache(albumArt, imgIdxLocal);
+				this[bgImgIdx] = imgIdxLocal;
+				return Promise.resolve({ image: this[bgImg] });
+			}
+
+			return Promise.resolve({ image: null });
+		}
+		catch (e) {
+			console.log(`\n>>> 背景图片 => 获取内嵌背景图片 => <错误: 无法正确解析图像: ${panel}:>\n`, e);
+			return Promise.resolve({ image: null });
+		}
+		finally {
+			this.imgFetching[panel] = false;
+		}
+	}
+
+	/**
+	 * Gets the background image based on the source setting.
+	 * @param {string} panel - The panel ('playlist', 'library', 'biography', 'lyrics').
+	 * @returns {Promise<{image: GdiBitmap|null}|null>} The background image object, or null on failure.
+	 */
+	getBgImage(panel) {
+		if (this.backgroundClosed || this.imgFetching[panel]) {
+			return Promise.resolve({ image: null });
+		}
+
+		const sourceKeys = this.getBgImageSourceKeys(panel);
+
+		if (!sourceKeys) {
+			return Promise.resolve({ image: null });
+		}
+
+		const { imgType, imgList, imgIdx, bgImg, bgImgIdx } = sourceKeys;
+		const bgImageFormatStr = grCfg.artworkImageFormats && grCfg.artworkImageFormats.bgImage;
+		const bgImageFormats = bgImageFormatStr ? ParseStringToRegExp(bgImageFormatStr) : null;
+		const bgImagePattern = this.getBgImagePatterns(panel);
+
+		this[imgList] = grm.ui.getImagePathList(
+			imgType, grm.ui.initMetadb(), bgImagePattern).filter(path => bgImageFormats ? bgImageFormats.test(path) : true
+		);
+
+		// * No file-system images: try embedded artwork
+		if (!this[imgList].length && (['albumArt', 'artistArt'].includes(imgType))) {
+			const embeddedIdx = imgType === 'artistArt' ? AlbumArtId.Artist :
+				this.albumArtIdx[this[imgIdx] % this.albumArtIdx.length];
+
+			return this.fetchBgImageEmbedded(panel, embeddedIdx, bgImg, bgImgIdx)
+				.then(result => result.image ? result : null);
+		}
+
+		// * File-system images found: try cache hit
+		const imgCached = this.checkBgImageCache(panel, imgList, imgIdx, bgImg, bgImgIdx);
+		if (imgCached) {
+			return Promise.resolve({ image: imgCached });
+		}
+
+		// * Cache miss: load from disk, stub if the load fails
+		return this.fetchBgImage(panel, imgList, imgIdx, bgImg, bgImgIdx)
+			.then(result => result.image ? result : null);
+	}
+
+	shutdown() {
+		this.backgroundClosed = true;
+		for (const panel of ['playlist', 'library', 'biography', 'lyrics']) {
+			clearInterval(this.imgCycleIntervals[panel]); this.imgCycleIntervals[panel] = null;
+		}
+		this.clearBgImageCache();
+	}
+
+	/**
+	 * Gets the background image pattern for a given panel type.
+	 * @param {string} panel - The panel type, which can be 'playlist', 'library','biography', 'lyrics'.
+	 * @returns {RegExp|null} The pattern for the specified panel type, or null if not configured.
+	 */
+	getBgImagePatterns(panel) {
+		const patternKeys = {
+			playlist:  'playlistBgAlbumArt',
+			library:   'libraryBgAlbumArt',
+			biography: 'biographyBgAlbumArt',
+			lyrics:    'lyricsBgAlbumArt'
+		};
+
+		if (!grSet[`${panel}BgImgAlbumArtFilter`] || !patternKeys[panel]) {
+			return null;
+		}
+
+		const str = grCfg.artworkPatterns && grCfg.artworkPatterns[patternKeys[panel]];
+
+		return str ? ParseStringToRegExp(str) : null;
+	}
+
+	/**
+	 * Retrieves the background image source keys based on the specified panel.
+	 * @param {string} panel - The panel ('playlist', 'library', 'biography', 'lyrics') whose background image source keys are to be retrieved.
+	 * @returns {object|undefined} An object containing the image type, list, index, and background image keys.
+	 */
+	getBgImageSourceKeys(panel) {
+		const Panel = CapitalizeString(panel);
+
+		const imgSrcKeys = {
+			artist: { imgType: 'artistArt', imgList: `artistImgList${Panel}`, imgIdx: `artistIdx${Panel}`, bgImg: `artistBgImg${Panel}`, bgImgIdx: `artistIdxCached${Panel}` },
+			album:  { imgType: 'albumArt',  imgList: `albumImgList${Panel}`,  imgIdx: `albumIdx${Panel}`,  bgImg: `albumBgImg${Panel}`,  bgImgIdx: `albumIdxCached${Panel}`  },
+			custom: { imgType: 'customArt', imgList: `customImgList${Panel}`, imgIdx: `customIdx${Panel}`, bgImg: `customBgImg${Panel}`, bgImgIdx: `customIdxCached${Panel}` }
+		};
+
+		return imgSrcKeys[grSet[`${panel}BgImgSource`]];
+	}
+
+	/**
+	 * Handles background image indexes for the specified panel.
+	 * @param {string|false} panel - The panel ('playlist', 'library', 'biography', 'lyrics', or false for all) whose background image indexes are to be retrieved.
+	 * @param {string} action - The action to perform: 'getIndexes', 'setIndexes', or 'clearIndexes'.
+	 */
+	handleBgImageIndex(panel, action) {
+		const panels = panel ? [panel] : ['playlist', 'library', 'biography', 'lyrics'];
+
+		const indexFields = {
+			playlist:  ['bgImgArtistIdxPlaylist',  'bgImgAlbumIdxPlaylist',  'bgImgCustomIdxPlaylist'],
+			library:   ['bgImgArtistIdxLibrary',   'bgImgAlbumIdxLibrary',   'bgImgCustomIdxLibrary'],
+			biography: ['bgImgArtistIdxBiography', 'bgImgAlbumIdxBiography', 'bgImgCustomIdxBiography'],
+			lyrics:    ['bgImgArtistIdxLyrics',    'bgImgAlbumIdxLyrics',    'bgImgCustomIdxLyrics']
+		};
+
+		const actions = {
+			getIndexes: (Panel, artistIdx, albumIdx, customIdx) => {
+				this[`artistIdx${Panel}`] = grSet[artistIdx];
+				this[`albumIdx${Panel}`]  = grSet[albumIdx];
+				this[`customIdx${Panel}`] = grSet[customIdx];
+			},
+			setIndexes: (Panel, artistIdx, albumIdx, customIdx) => {
+				grSet[artistIdx] = this[`artistIdx${Panel}`];
+				grSet[albumIdx]  = this[`albumIdx${Panel}`];
+				grSet[customIdx] = this[`customIdx${Panel}`];
+			},
+			clearIndexes: (Panel, artistIdx, albumIdx, customIdx) => {
+				this[`artistIdx${Panel}`]        = 0;
+				this[`artistIdxCached${Panel}`] = -1;
+				this[`albumIdx${Panel}`]         = 0;
+				this[`albumIdxCached${Panel}`]  = -1;
+				this[`customIdx${Panel}`]        = 0;
+				this[`customIdxCached${Panel}`] = -1;
+				grSet[artistIdx] = 0;
+				grSet[albumIdx]  = 0;
+				grSet[customIdx] = 0;
+			}
+		};
+
+		for (const p of panels) {
+			if (actions[action]) {
+				actions[action](CapitalizeString(p), ...indexFields[p]);
+			}
+		}
+	}
+	// #endregion
+}
+
+
+///////////////////////////
+// * CPU USAGE TRACKER * //
+///////////////////////////
+/**
+ * A class that tracks and monitors CPU usage.
+ */
+class CPUTracker {
+	/**
+	 * Create the CPUTracker instance.
+	 * @param {Function} onChangeCallback - A callback function to call when CPU usage changes.
+	 */
+	constructor(onChangeCallback) {
+		/** @private @type {number} */
+		this.cpuUsage = 0;
+		/** @private @type {number} */
+		this.guiCpuUsage = 0;
+		/** @private @type {?number} */
+		this.cpuTrackerTimer = null;
+		/** @private @type {Function} */
+		this.onChangeCallback = onChangeCallback;
+		/** @private @type {{[key: string]: {sampleCount: number, currentSampleCount: number, resetSampleCount: number, acumUsage: number, averageUsage: number}}} */
+		this.usage = {
+			idle: {
+				sampleCount: 30,
+				currentSampleCount: 0,
+				resetSampleCount: 0,
+				acumUsage: 0,
+				averageUsage: 0
+			},
+			playing: {
+				sampleCount: 30,
+				currentSampleCount: 0,
+				resetSampleCount: 0,
+				acumUsage: 0,
+				averageUsage: 0
+			}
+		};
+	}
+
+	/**
+	 * Gets the current CPU usage.
+	 * @returns {number} The current CPU usage.
+	 */
+	getCpuUsage() {
+		return this.cpuUsage;
+	}
+
+	/**
+	 * Gets the current GUI CPU usage.
+	 * @returns {number} The current GUI CPU usage.
+	 */
+	getGuiCpuUsage() {
+		return this.guiCpuUsage;
+	}
+
+	/**
+	 * Starts the CPU usage monitoring process.
+	 */
+	start() {
+		if (this.cpuTrackerTimer) return;
+
+		this.cpuTrackerTimer = setInterval(() => {
+			const floatUsage = Math.random() * 100; // Simulated CPU usage
+			const isPlaying = Math.random() > 0.5; // Simulated playback status
+			const isPaused = Math.random() > 0.8;
+			const usageType = isPlaying && !isPaused ? 'playing' : 'idle';
+
+			this.updateUsage(usageType, floatUsage);
+
+			const baseLine = this.usage[usageType].averageUsage;
+			this.cpuUsage = floatUsage.toFixed(1);
+			let usageDiff = Math.max((floatUsage - baseLine), 0);
+			usageDiff = (usageDiff <= 0.5 ? 0 : usageDiff); // Suppress low spikes
+			this.guiCpuUsage = usageDiff.toFixed(1);
+
+			if (this.onChangeCallback) {
+				this.onChangeCallback();
+			}
+		}, 1000);
+	}
+
+	/**
+	 * Stops the CPU usage monitoring and resets usage statistics.
+	 */
+	stop() {
+		if (this.cpuTrackerTimer) {
+			clearInterval(this.cpuTrackerTimer);
+			this.cpuTrackerTimer = undefined;
+		}
+
+		this.resetUsage('idle');
+		this.resetUsage('playing');
+	}
+
+	/**
+	 * Recalculates the average CPU usage based on a new sample.
+	 * @param {string} type - The type of CPU usage to recalculate ('idle' or 'playing').
+	 * @param {number} currentUsage - The new CPU usage sample.
+	 */
+	recalcAvg(type, currentUsage) {
+		const usageState = this.usage[type];
+
+		if (usageState.currentSampleCount < usageState.sampleCount) {
+			usageState.acumUsage += currentUsage;
+			usageState.currentSampleCount++;
+			usageState.averageUsage = usageState.acumUsage / usageState.currentSampleCount;
+			return;
+		}
+
+		usageState.averageUsage -= usageState.averageUsage / usageState.sampleCount;
+		usageState.averageUsage += currentUsage / usageState.sampleCount;
+	}
+
+	/**
+	 * Resets the CPU usage data for a specified type.
+	 * @param {string} type - The type of CPU usage to reset ('idle' or 'playing').
+	 */
+	resetUsage(type) {
+		const usageState = this.usage[type];
+		usageState.currentSampleCount = 0;
+		usageState.resetSampleCount = 0;
+		usageState.acumUsage = 0;
+		usageState.averageUsage = 0;
+	}
+
+	/**
+	 * Updates the CPU usage data based on new sample.
+	 * @param {string} type - The type of CPU usage to update ('idle' or 'playing').
+	 * @param {number} currentUsage - The current CPU usage to update.
+	 */
+	updateUsage(type, currentUsage) {
+		const usageState = this.usage[type];
+
+		if (usageState.currentSampleCount) {
+			if (usageState.averageUsage - currentUsage > 2) {
+				if (usageState.resetSampleCount < 3) {
+					usageState.resetSampleCount++;
+				} else {
+					this.resetUsage(type);
+				}
+			} else if (Math.abs(currentUsage - usageState.averageUsage) < 2) {
+				this.recalcAvg(type, currentUsage);
+			}
+		} else {
+			this.recalcAvg(type, currentUsage);
+		}
+	}
+}
+
+
+/////////////////
+// * TOOLTIP * //
+/////////////////
+/**
+ * A class that creates or stops the tooltip timer.
+ */
+class TooltipTimer {
+	/**
+	 * Creates the `TooltipTimer` instance.
+	 */
+	constructor() {
+		/** @private @type {number|undefined} The timer ID for the tooltip display timeout. */
+		this.tooltipTimer = undefined;
+		/** @private @type {number|undefined} The identifier of the current tooltip caller. */
+		this.tooltipCaller = undefined;
+	}
+
+	// * PUBLIC METHODS * //
+	// #region PUBLIC METHODS
+	/**
+	 * Displays the tooltip.
+	 * @param {string} text - The text to show in the tooltip.
+	 * @param {boolean} [force] - Activates the tooltip whether or not text has changed.
+	 */
+	displayTooltip(text, force) {
+		if (grm.ui.ttip && (grm.ui.ttip.Text !== text.toString() || force)) {
+			grm.ui.ttip.Text = text;
+			grm.ui.ttip.Activate();
+		}
+	}
+
+	/**
+	 * Starts a tooltip.
+	 * @param {number} id - The id of the caller.
+	 * @param {string} text - The text to show in the tooltip.
+	 */
+	start(id, text) {
+		const oldCaller = this.tooltipCaller;
+		this.tooltipCaller = id;
+
+		if (!this.tooltipTimer && grm.ui.ttip.Text) {
+			this.displayTooltip(text, oldCaller !== this.tooltipCaller);
+		}
+		else { // * There can be only one tooltip present at all times, so we can kill the timer w/o any worries
+			if (this.tooltipTimer) {
+				this.forceStop();
+			}
+
+			if (!this.tooltipTimer) {
+				this.tooltipTimer = setTimeout(() => {
+					this.displayTooltip(text);
+					this.tooltipTimer = null;
+				}, 300);
+			}
+		}
+	}
+
+	/**
+	 * Stops a tooltip.
+	 * @param {number} id - The id of the caller.
+	 */
+	stop(id) {
+		if (this.tooltipCaller === id) { // Do not stop other callers
+			this.forceStop();
+		}
+	}
+
+	/**
+	 * Forces the tooltip to stop.
+	 */
+	forceStop() {
+		this.displayTooltip('');
+		if (!this.tooltipTimer) return;
+		clearTimeout(this.tooltipTimer);
+		this.tooltipTimer = null;
+		this.tooltipCaller = null;
+	}
+	// #endregion
+}
+
+
+/**
+ * A class that creates or clears the tooltip text for normal and styled tooltips.
+ */
+class TooltipHandler {
+	/**
+	 * Creates the `TooltipHandler` instance.
+	 * Constructs a unique ID and a reference to the TooltipTimer instance.
+	 */
+	constructor() {
+		/** @private @type {number} The unique identifier for this TooltipHandler instance. */
+		this.id = Math.ceil(Math.random() * 10000);
+		/** @private @type {TooltipTimer} A reference to the TooltipTimer instance used to manage tooltip timing. */
+		this.timer = new TooltipTimer();
+	}
+
+	// * PUBLIC METHODS * //
+	// #region PUBLIC METHODS
+	/**
+	 * Shows tooltip after delay (300ms).
+	 * @param {string} text - The text to show in the tooltip.
+	 */
+	showDelayed(text) {
+		grm.ui.styledTooltipText = text;
+		if (!grSet.showStyledTooltips) {
+			this.timer.start(this.id, text);
+		}
+	}
+
+	/**
+	 * Shows the tooltip immediately.
+	 * @param {string} text - The text to show in the tooltip.
+	 */
+	showImmediate(text) {
+		grm.ui.styledTooltipText = text;
+		if (!grSet.showStyledTooltips) {
+			this.timer.stop(this.id);
+			this.timer.displayTooltip(text);
+		}
+	}
+
+	/**
+	 * Clears this tooltip if this handler created it.
+	 */
+	clear() {
+		this.timer.stop(this.id);
+	}
+
+	/**
+	 * Clears the tooltip regardless of which handler created it.
+	 */
+	stop() {
+		this.timer.forceStop();
+	}
+	// #endregion
+}
+
+
+//////////////////////////////
+// * INTERFACE HYPERLINKS * //
+//////////////////////////////
+/**
+ * A class that creates clickable hyperlinks in the Playlist header and in the lower bar.
+ */
+class Hyperlink {
+	/**
+	 * Creates the `Hyperlink` instance.
+	 * Initializes properties for the text element in the playlist.
+	 * @param {string} text - The text that will be displayed in the hyperlink.
+	 * @param {GdiFont} font - The font to use.
+	 * @param {string} type - The field name which will be searched when clicking on the hyperlink.
+	 * @param {number} xOffset - The x-offset of the hyperlink. Negative values will be subtracted from the containerWidth to right justify.
+	 * @param {number} yOffset - The y-offset of the hyperlink.
+	 * @param {number} containerWidth - The width of the container the hyperlink will be in. Used for right justification purposes.
+	 * @param {boolean} [inPlaylist] - If the hyperlink is drawing in a scrolling container like a playlist, then it is drawn differently.
+	 */
+	constructor(text, font, type, xOffset, yOffset, containerWidth, inPlaylist = false) {
+		/** @private @type {string} */
+		this.text = text;
+		/** @private @type {string} */
+		this.type = type;
+		/** @private @type {number} */
+		this.x_offset = xOffset;
+		/** @private @type {number} */
+		this.x = xOffset < 0 ? containerWidth + xOffset : xOffset;
+		/** @private @type {number} */
+		this.y_offset = yOffset;
+		/** @private @type {number} */
+		this.y = yOffset;
+		/** @private @type {number} */
+		this.container_w = containerWidth;
+		/** @private @type {boolean} */
+		this.state = HyperlinkStates.Normal;
+		/** @private @type {boolean} */
+		this.inPlaylist = inPlaylist;
+
+		this.setFont(font);
+	}
+
+	// * PUBLIC METHODS * //
+	// #region PUBLIC METHODS
+	/**
+	 * Draws the hyperlink. When drawing in a playlist, we draw from the y-offset instead of y, because the playlist scrolls.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 * @param {number} color - The color of the hyperlink.
+	 */
+	draw(gr, color) {
+		const font = this.state === HyperlinkStates.Hovered ? this.hoverFont : this.font;
+		DrawString(gr, this.text, font, color, this.x, this.inPlaylist ? this.y_offset : this.y, this.w + SCALE(1), this.h, Stringformat.Trim_Ellipsis_Char);
+	}
+
+	/**
+	 * Sets the xOffset of the hyperlink after it has been created.
+	 * @param {number} xOffset - The x-offset of the hyperlink. Negative values will be subtracted from the containerWidth to right justify.
+	 */
+	setXOffset(xOffset) {
+		this.x = xOffset < 0 ? this.container_w + xOffset : xOffset;
+	}
+
+	/**
+	 * Sets the vertical position of the hyperlink.
+	 * The playlist requires subtracting 2 additional pixels from y for some reason.
+	 * @param {number} y - The y-coordinate.
+	 */
+	setY(y) {
+		this.y = y + this.y_offset + (-2);
+	}
+
+	/**
+	 * Sets the font for the hyperlink.
+	 * @param {GdiFont} font - The font that will be used.
+	 */
+	setFont(font) {
+		this.font = font;
+		this.hoverFont = gdi.Font(font.Name, font.Size, font.Style | FontStyle.Underline);
+		this.link_dimensions = this.updateDimensions();
+	}
+
+	/**
+	 * Sets the width of the container the hyperlink will be placed in.
+	 * If hyperlink width is smaller than the container, it will be truncated.
+	 * If the the xOffset is negative, the position will be adjusted as the container width changes.
+	 * @param {number} w - The width.
+	 */
+	setContainerWidth(w) {
+		if (this.x_offset < 0) {
+			this.x = w + this.x_offset; // Add because offset is negative
+		}
+		this.container_w = w;
+		this.link_dimensions = this.updateDimensions();
+		this.w = Math.ceil(Math.min(this.container_w, this.link_dimensions.Width + 1));
+	}
+
+	/**
+	 * Gets the width of the hyperlink.
+	 * @returns {number} The width of the link in pixels.
+	 */
+	getWidth() {
+		try {
+			return Math.ceil(this.link_dimensions.Width);
+		} catch (e) {
+			return null;
+		}
+	}
+
+	/**
+	 * Updates the width and height of the hyperlinks.
+	 * @returns {number} The dimensions of the text.
+	 */
+	updateDimensions() {
+		try {
+			const measureStringScratchImg = gdi.CreateImage(1000, 200);
+			const gr = measureStringScratchImg.GetGraphics();
+			let dimensions;
+			try { dimensions = gr.MeasureString(this.text, this.font, 0, 0, 0, 0); }
+			finally { measureStringScratchImg.ReleaseGraphics(gr); }
+			this.h = Math.ceil(dimensions.Height) + 1;
+			this.w = Math.min(Math.ceil(dimensions.Width) + 1, this.container_w);
+			return dimensions;
+		} catch (e) {
+			return null; // Probably some invalid parameters on init
+		}
+	}
+
+	/**
+	 * Populates the result of artist, album, date or label in the "Search" playlist when a hyperlink was clicked.
+	 */
+	click() {
+		const populatePlaylist = (query) => {
+			grm.debug.debugLog(query);
+			try {
+				const handle_list = fb.GetQueryItems(fb.GetLibraryItems(), query);
+				if (handle_list.Count) {
+					pl.history.ignorePlaylistMutations = true;
+					const plist = plman.FindOrCreatePlaylist('搜索', true);
+					plman.UndoBackup(plist);
+					handle_list.Sort();
+					const index = fb.IsPlaying ? handle_list.BSearch(fb.GetNowPlaying()) : -1;
+
+					if (plist === plman.PlayingPlaylist && plman.GetPlayingItemLocation().PlaylistIndex === pl && index !== -1) {
+						// Remove everything in playlist except currently playing song
+						plman.ClearPlaylistSelection(plist);
+						plman.SetPlaylistSelection(plist, [plman.GetPlayingItemLocation().PlaylistItemIndex], true);
+						plman.RemovePlaylistSelection(plist, true);
+						plman.ClearPlaylistSelection(plist);
+
+						handle_list.RemoveById(index);
+					}
+					else {
+						// Nothing playing or Search playlist is not active
+						plman.ClearPlaylist(plist);
+					}
+
+					plman.InsertPlaylistItems(plist, 0, handle_list);
+					plman.SortByFormat(plist, grCfg.settings.playlistSortDefault);
+					plman.ActivePlaylist = plist;
+					pl.history.ignorePlaylistMutations = false;
+
+					return true;
+				}
+				return false;
+			}
+			catch (e) {
+				pl.history.ignorePlaylistMutations = false;
+				console.log(`无法成功执行: ${query}`);
+			}
+		};
+
+		/** @type {string} */
+		let query;
+		switch (this.type) {
+			case 'update': RunCmd('https://github.com/TT-ReBORN/Georgia-ReBORN/releases'); break;
+			case 'date':   query = grSet.showPlaylistFullDate ? `"${grTF.date}" IS ${this.text}` : `"$year(%date%)" IS ${this.text}`; break;
+			case 'artist': query = grSet.headerFlipRows ? `Album HAS "${this.text.replace(Regex.PunctQuoteDouble, '')}"` : `Artist HAS "${this.text.replace(Regex.PunctQuoteDouble, '')}" OR Album Artist HAS "${this.text.replace(Regex.PunctQuoteDouble, '')}" OR ARTISTFILTER HAS "${this.text.replace(Regex.PunctQuoteDouble, '')}"`; break;
+			case 'album':  query = grSet.headerFlipRows ? `Artist HAS "${this.text.replace(Regex.PunctQuoteDouble, '')}" OR Album Artist HAS "${this.text.replace(Regex.PunctQuoteDouble, '')}" OR ARTISTFILTER HAS "${this.text.replace(Regex.PunctQuoteDouble, '')}"` : `Album HAS "${this.text.replace(Regex.PunctQuoteDouble, '')}"`; break;
+			case 'label':  query = `Label HAS "${this.text.replace(Regex.PunctQuoteDouble, '')}" OR Publisher HAS "${this.text.replace(Regex.PunctQuoteDouble, '')}"`; break;
+			default:       query = `${this.type} IS "${this.text}"`; break;
+		}
+
+		if (!populatePlaylist(query)) {
+			const start = this.text.indexOf('[');
+			if (start > 0) {
+				query = `${this.type} IS ${this.text.slice(0, start - 3)}`; // Remove ' - [...]' from end of string in case we're showing "Album - [Deluxe Edition]", etc.
+				populatePlaylist(query);
+			}
+		}
+	}
+
+	/**
+	 * Updates the hyperlink state.
+	 */
+	repaint() {
+		try {
+			window.RepaintRect(this.x, this.y, this.w, this.h);
+		} catch (e) {
+			// Probably already redrawing
+		}
+	}
+	// #endregion
+
+	// * CALLBACKS * //
+	// #region CALLBACKS
+	/**
+	 * Sets mouse hover state for every hyperlink not created in Playlist.
+	 * @param {object} hyperlink - The hyperlink object.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 * @returns {boolean} True or false.
+	 */
+	on_mouse_move(hyperlink, x, y) {
+		if (hyperlink.trace(x, y)) {
+			if (hyperlink.state !== HyperlinkStates.Hovered) {
+				hyperlink.state = HyperlinkStates.Hovered;
+				window.RepaintRect(hyperlink.x, hyperlink.y, hyperlink.w, hyperlink.h);
+			}
+			return true;
+		}
+		if (hyperlink.state !== HyperlinkStates.Normal) {
+			hyperlink.state = HyperlinkStates.Normal;
+			window.RepaintRect(hyperlink.x, hyperlink.y, hyperlink.w, hyperlink.h);
+		}
+		return false;
+	}
+
+	/**
+	 * Checks if the mouse is within the boundaries of a hyperlink.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 * @returns {boolean} True or false.
+	 */
+	trace(x, y) {
+		return (this.x <= x) && (x <= this.x + this.w) && (this.y <= y) && (y <= this.y + this.h);
+	}
+	// #endregion
+}
+
+
+/////////////////////
+// * JUMP SEARCH * //
+/////////////////////
+/**
+ * A class that creates the jump search when using keystrokes.
+ * Searches in the active Playlist first and when nothing found, it tries in the Library.
+ */
+class JumpSearch {
+	/**
+	 * Creates the `JumpSearch` instance.
+	 */
+	constructor() {
+		/** @private @type {number} */
+		this.arc1 = 5;
+		/** @private @type {number} */
+		this.arc2 = 4;
+		/** @private @type {object} */
+		this.j = {
+			x: 0,
+			y: 0,
+			w: grSet.notificationFontSize_layout * 2,
+			h: grSet.notificationFontSize_layout * 2
+		};
+		/** @private @type {string} */
+		this.jSearch = '';
+		/** @private @type {boolean} */
+		this.jump_search = true;
+		/** @type {{ [key: string]: number[] }}  */
+		this.initials = null;
+	}
+
+	// * PUBLIC METHODS * //
+	// #region PUBLIC METHODS
+	/**
+	 * Draws the jump search on the playlist panel.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	draw(gr) {
+		if (!this.jSearch) return;
+		gr.SetSmoothingMode(4);
+		this.j.w = gr.CalcTextWidth(this.jSearch, grFont.notification) + 25;
+		gr.FillRoundRect(this.j.x - this.j.w / 2, this.j.y, this.j.w, this.j.h, this.arc1, this.arc1, RGBtoRGBA(grCol.popupBg, 220));
+		gr.DrawRoundRect(this.j.x - this.j.w / 2, this.j.y, this.j.w, this.j.h, this.arc1, this.arc1, 1, 0x64000000);
+		gr.DrawRoundRect(this.j.x - this.j.w / 2 + 1, this.j.y + 1, this.j.w - 2, this.j.h - 2, this.arc2, this.arc2, 1, 0x28ffffff);
+		// gr.GdiDrawText(this.jSearch, grFont.notification, RGB(0, 0, 0), this.j.x - this.j.w / 2 + 1, this.j.y + 1, this.j.w, this.j.h, panel.cc); // Drop shadow not needed
+		gr.GdiDrawText(this.jSearch, grFont.notification, this.jump_search ? grCol.popupText : 0xffff4646, this.j.x - this.j.w / 2, this.j.y, this.j.w, this.j.h, lib.panel.cc);
+		gr.SetSmoothingMode(0);
+	}
+
+	/**
+	 * Sets the vertical position of the jump search.
+	 * @param {number} y - The y-coordinate.
+	 */
+	setY(y) {
+		this.y = y;
+	}
+	// #endregion
+
+	// * CALLBACKS * //
+	// #region CALLBACKS
+	/**
+	 * Handles key pressed events and activates the jump search.
+	 * @param {number} code - The character code.
+	 */
+	on_char(code) {
+		const text = String.fromCharCode(code);
+
+		if (grSet.jumpSearchDisabled || lib.panel.search.active ||
+			utils.IsKeyPressed(VKey.CONTROL) || utils.IsKeyPressed(VKey.ESCAPE) ||
+			this.jSearch === '' && text === ' ') {
+			return;
+		}
+
+		const playlistItems = plman.GetPlaylistItems(plman.ActivePlaylist);
+		const search = fb.TitleFormat(grSet.jumpSearchComposerOnly ? '%composer%' : '$if2(%album artist%, %artist%)').EvalWithMetadbs(playlistItems);
+		let focusIndex = plman.GetPlaylistFocusItemIndex(plman.ActivePlaylist);
+		let advance = false;
+		let foundInPlaylist = false;
+		let foundInLibrary = false;
+
+		switch (code) {
+			case lib.vk.back:
+				this.jSearch = this.jSearch.slice(0, -1);
+				break;
+			case lib.vk.enter:
+				this.jSearch = '';
+				return;
+			default:
+				this.jSearch += text;
+				break;
+		}
+
+		// * Playlist advance
+		if (focusIndex >= 0 && focusIndex < search.length && (grm.ui.displayPlaylist || grm.ui.displayLibrarySplit(true))) {
+			const char = search[focusIndex].replace(Regex.LibMarkerColor, '').charAt(0).toLowerCase();
+			if (char === text && AllEqual(this.jSearch)) {
+				this.jSearch = this.jSearch.slice(0, 1);
+				advance = true;
+			}
+		}
+		// * Library advance
+		else if (lib.panel.pos >= 0 && lib.panel.pos < lib.pop.tree.length && !grm.ui.displayLibrarySplit(true)) {
+			const char = lib.pop.tree[lib.panel.pos].name.replace(Regex.LibMarkerColor, '').charAt(0).toLowerCase();
+			if (lib.pop.tree[lib.panel.pos].sel && char === text && AllEqual(this.jSearch)) {
+				this.jSearch = this.jSearch.slice(0, 1);
+				advance = true;
+			}
+		}
+
+		switch (true) {
+			case advance: {
+				if (utils.IsKeyPressed(0x0A) || utils.IsKeyPressed(VKey.BACK) ||  utils.IsKeyPressed(VKey.TAB) || utils.IsKeyPressed(VKey.CONTROL) || utils.IsKeyPressed(VKey.ESCAPE) || utils.IsKeyPressed(VKey.MULTIPLY) || utils.IsKeyPressed(VKey.SUBTRACT)) return;
+				let init = '';
+				let cur = 'currentArr';
+				if (!this.initials) { // reset in buildTree
+					this.initials = {};
+					// * Playlist advance
+					if (grm.ui.displayPlaylist || grm.ui.displayLibrarySplit(true)) {
+						for (const [i] of playlistItems.Convert().entries()) {
+							const name = search[i].replace(Regex.LibMarkerColor, '');
+							init = name.charAt().toLowerCase();
+							if (cur !== init && !this.initials[init]) {
+								this.initials[init] = [i];
+								cur = init;
+							} else {
+								this.initials[init].push(i);
+							}
+						}
+					}
+					// * Library advance
+					else {
+						for (const [i, v] of lib.pop.tree.entries()) {
+							if (!v.root) {
+								const nm = v.name.replace(Regex.LibMarkerColor, '');
+								init = nm.charAt().toLowerCase();
+								if (cur !== init && !this.initials[init]) {
+									this.initials[init] = [i];
+									cur = init;
+								} else {
+									this.initials[init].push(i);
+								}
+							}
+						}
+					}
+				}
+
+				this.jump_search = false;
+
+				// * Playlist advance
+				if (focusIndex >= 0 && focusIndex < search.length && (grm.ui.displayPlaylist || grm.ui.displayLibrarySplit(true))) {
+					this.matches = this.initials[text];
+					grm.debug.debugLog('播放列表预先结果', this.matches); // Debug
+					this.ix = this.matches.indexOf(focusIndex);
+					this.ix++;
+					if (this.ix >= this.matches.length) this.ix = 0;
+					focusIndex = this.matches[this.ix];
+					this.jump_search = true;
+				}
+				// * Library advance
+				else if (lib.panel.pos >= 0 && lib.panel.pos < lib.pop.tree.length && !grm.ui.displayLibrarySplit(true)) {
+					this.matches = this.initials[text];
+					grm.debug.debugLog('曲库预先结果', this.matches); // Debug, can remove this soon
+					this.ix = this.matches.indexOf(lib.panel.pos);
+					this.ix++;
+					if (this.ix >= this.matches.length) this.ix = 0;
+					lib.panel.pos = this.matches[this.ix];
+					this.jump_search = true;
+				}
+
+				// * Playlist advance
+				if (this.jump_search && (grm.ui.displayPlaylist || grm.ui.displayLibrarySplit(true))) {
+					plman.ClearPlaylistSelection(plman.ActivePlaylist);
+					plman.SetPlaylistFocusItem(plman.ActivePlaylist, focusIndex);
+					plman.SetPlaylistSelectionSingle(plman.ActivePlaylist, focusIndex, true);
+					window.Repaint();
+				}
+				// * Library advance
+				else if (this.jump_search && !grm.ui.displayLibrarySplit(true)) {
+					lib.pop.clearSelected();
+					lib.pop.sel_items = [];
+					lib.pop.tree[lib.panel.pos].sel = true;
+					lib.pop.setPos(lib.panel.pos);
+					lib.pop.getTreeSel();
+					lib.lib.treeState(false, libSet.rememberTree);
+					window.Repaint();
+					if (lib.panel.imgView) lib.pop.showItem(lib.panel.pos, 'focus');
+					else {
+						const row = (lib.panel.pos * lib.ui.row.h - lib.sbar.scroll) / lib.ui.row.h;
+						if (lib.sbar.rows_drawn - row < 3 || row < 0) lib.sbar.checkScroll((lib.panel.pos + 3) * lib.ui.row.h - lib.sbar.rows_drawn * lib.ui.row.h);
+					}
+					if (libSet.libSource) {
+						if (lib.pop.autoFill.key) lib.pop.load(lib.pop.sel_items, true, false, false, !libSet.sendToCur, false);
+						lib.pop.track(lib.pop.autoFill.key);
+					} else if (lib.panel.pos >= 0 && lib.panel.pos < lib.pop.tree.length) lib.pop.setPlaylistSelection(lib.panel.pos, lib.pop.tree[lib.panel.pos]);
+				}
+				else {
+					window.Repaint();
+				}
+				lib.timer.clear(lib.timer.jsearch2);
+				lib.timer.jsearch2.id = setTimeout(() => {
+					this.jSearch = '';
+					window.Repaint();
+					lib.timer.jsearch2.id = null;
+				}, 2200);
+			}
+			break;
+
+		case !advance:
+			if (utils.IsKeyPressed(VKey.TAB) || utils.IsKeyPressed(VKey.CONTROL) || utils.IsKeyPressed(VKey.ESCAPE) || utils.IsKeyPressed(VKey.MULTIPLY) || utils.IsKeyPressed(VKey.SUBTRACT)) return;
+			if (!lib.panel.search.active) {
+				let pos = -1;
+				lib.pop.clearSelected();
+				if (!this.jSearch) return;
+				lib.pop.sel_items = [];
+				this.jump_search = true;
+				window.Repaint();
+				lib.timer.clear(lib.timer.jsearch1);
+
+				lib.timer.jsearch1.id = setTimeout(() => {
+					// * First search in the Playlist
+					playlistItems.Convert().some((v, i) => {
+						const name = search[i].replace(Regex.LibMarkerColor, '');
+						if (name.substring(0, this.jSearch.length).toLowerCase() === this.jSearch.toLowerCase()) {
+							foundInPlaylist = true;
+							pos = i;
+							plman.ClearPlaylistSelection(plman.ActivePlaylist);
+							plman.SetPlaylistFocusItem(plman.ActivePlaylist, pos);
+							plman.SetPlaylistSelectionSingle(plman.ActivePlaylist, pos, true);
+							grm.debug.debugLog(`跳转搜索: "${name}" 在播放列表中找到`); // Debug, can remove this soon
+							return true;
+						}
+						return false;
+					});
+					// * If no Playlist results found, try search query in the Library
+					if (!foundInPlaylist && grSet.jumpSearchIncludeLibrary && grSet.layout !== 'compact') {
+						lib.pop.tree.some((v, i) => {
+							const name = v.name.replace(Regex.LibMarkerColor, '');
+							if (name !== lib.panel.rootName && name.substring(0, this.jSearch.length).toLowerCase() === this.jSearch.toLowerCase()) {
+								foundInPlaylist = false;
+								foundInLibrary = true;
+								pos = i;
+								v.sel = true;
+								lib.pop.setPos(pos);
+								if (lib.pop.autoFill.key) lib.pop.getTreeSel();
+								lib.lib.treeState(false, libSet.rememberTree);
+								grm.debug.debugLog(`跳转搜索: "${name}" 在曲库中找到`); // Debug, can remove this soon
+								return true;
+							}
+							return false;
+						});
+					}
+
+					if (!foundInPlaylist && !foundInLibrary) {
+						this.jump_search = false;
+						grm.debug.debugLog('跳转搜索: 未找到任何结果'); // Debug, can remove this soon
+					}
+
+					window.Repaint();
+
+					if (foundInPlaylist) {
+						grm.ui.displayPlaylist = true;
+						grm.ui.displayLibrary = grSet.libraryLayout === 'split' && grm.ui.displayPlaylist;
+						grm.ui.displayBiography = false;
+						grm.ui.displayLyrics = false;
+						grm.button.initButtonState();
+					}
+					else if (foundInLibrary && grSet.jumpSearchIncludeLibrary) {
+						grm.ui.displayPlaylist = grSet.libraryLayout === 'split' && grm.ui.displayPlaylist;
+						grm.ui.displayLibrary = true;
+						grm.ui.displayBiography = false;
+						grm.ui.displayLyrics = false;
+						lib.pop.showItem(pos, 'focus');
+						this.jSearch = ''; // Reset to avoid conflict with other query
+						grm.button.initButtonState();
+					}
+
+					lib.timer.jsearch1.id = null;
+				}, 500);
+
+				lib.timer.clear(lib.timer.jsearch2);
+
+				lib.timer.jsearch2.id = setTimeout(() => {
+					this.jSearch = '';
+					window.Repaint();
+					lib.timer.jsearch2.id = null;
+				}, 1200);
+			}
+		}
+	}
+
+	/**
+	 * Sets the size and position of the jump search and updates them on window resizing.
+	 */
+	on_size() {
+		this.j.h = grSet.notificationFontSize_layout * 2;
+		this.j.x = Math.round(grSet.playlistLayout === 'full' || grSet.layout !== 'default' ? grm.ui.ww * 0.5 : grm.ui.ww * 0.5 + grm.ui.ww * 0.25);
+		this.j.y = Math.round((grm.ui.wh + grm.ui.topMenuHeight - grm.ui.lowerBarHeight - this.j.h) / 2);
+		this.arc1 = Math.min(5, this.j.h / 2);
+		this.arc2 = Math.min(4, (this.j.h - 2) / 2);
+	}
+	// #endregion
+}
+
+
+//////////////////////
+// * PROGRESS BAR * //
+//////////////////////
+/**
+ * A class that creates the progress bar in the lower bar when enabled.
+ * Quick access via right click context menu on lower bar.
+ */
+class ProgressBar {
+	/**
+	 * Creates the `ProgressBar` instance.
+	 */
+	constructor() {
+		/** @public @type {number} The x-coordinate of the progress bar. */
+		this.x = grm.ui.edgeMargin;
+		/** @public @type {number} The y-coordinate of the progress bar. */
+		this.y = 0;
+		/** @public @type {number} The width of the progress bar. */
+		this.w = grm.ui.ww - grm.ui.edgeMarginBoth;
+		/** @public @type {number} The height of the progress bar. */
+		this.h = grm.ui.seekbarHeight;
+		/** @public @type {number} The arc radius for rounded corners of the progress bar. */
+		this.arc = Math.min(this.w, this.h) / 2;
+		/** @public @type {number} The length of the progress bar fill. */
+		this.progressLength = 0;
+		/** @private @type {boolean} The state that indicates if the progress bar is being dragged. */
+		this.drag = false;
+	}
+
+	// * PUBLIC METHODS * //
+	// #region PUBLIC METHODS
+	/**
+	 * Draws the progress bar with various progress bar styles.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	draw(gr) {
+		if (grm.debug.showDrawExtendedTiming) grm.ui.seekbarProfiler.Reset();
+
+		const styleRounded = grSet.styleProgressBarDesign === 'rounded';
+		if (styleRounded) this.arc = Math.min(this.w, this.h) / 2;
+
+		gr.SetSmoothingMode(styleRounded ? SmoothingMode.AntiAlias : SmoothingMode.None);
+
+		this.drawProgressBarBg(gr);
+		this.drawProgressBarFill(gr);
+	}
+
+	/**
+	 * Draws the progress bar background.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawProgressBarBg(gr) {
+		const barDesignNoDotsThin = !['dots', 'thin'].includes(grSet.styleProgressBarDesign);
+		const styleRounded = grSet.styleProgressBarDesign === 'rounded';
+		const styleDefault = grSet.styleDefault && (['blue', 'darkblue', 'red', 'cream'].includes(grSet.theme) || grSet.theme.startsWith('custom'));
+		const styleCream = grSet.theme === 'cream' && (grSet.styleAlternative || grSet.styleAlternative2) && (!grSet.styleBevel && !grSet.styleBlend && !grSet.styleBlend2 && grSet.styleProgressBarDesign !== 'rounded') && !grSet.systemFirstLaunch;
+		const styleBevelOrInner = barDesignNoDotsThin && ['bevel', 'inner'].includes(grSet.styleProgressBar);
+		const progressBarColor = grm.ui.isStreaming && fb.IsPlaying ? grCol.progressBarStreaming : grCol.progressBar;
+
+		if (styleRounded) {
+			FillRoundRect(gr, this.x, this.y, this.w, this.h, this.arc, this.arc, progressBarColor);
+		} else if (barDesignNoDotsThin) {
+			gr.FillSolidRect(this.x, this.y, this.w, this.h, progressBarColor);
+		}
+
+		if (styleDefault || styleCream) {
+			gr.DrawRect(this.x - 2, this.y - 2, this.w + 3, this.h + 3, 1, grCol.progressBarFrame);
+		}
+
+		if (styleBevelOrInner) {
+			const styleBlackReborn = grSet.styleBlackReborn && fb.IsPlaying;
+			const angle = grSet.styleProgressBar === 'inner' ? (styleBlackReborn ? 90 : -90) : (styleBlackReborn ? -90 : 90);
+
+			if (styleRounded) {
+				FillGradRoundRect(gr, this.x, this.y, this.w + SCALE(2), this.h + SCALE(2), this.arc, this.arc, angle, 0, grCol.styleProgressBar, 1);
+
+				const xLeft = this.x + SCALE(3);
+				const xRight = this.w + this.x - SCALE(12);
+				const yTop = this.y - 0.5;
+				const yBottom = this.y + this.h - 0.5;
+				FillGradRect(gr, xLeft, yTop, SCALE(9), 1, 179, grCol.styleProgressBarLineTop, 0); // Top left
+				FillGradRect(gr, xLeft, yBottom, SCALE(9), 1, 179, grCol.styleProgressBarLineBottom, 0); // Bottom left
+				FillGradRect(gr, xRight, yTop, SCALE(9), 1, 179, 0, grCol.styleProgressBarLineTop); // Top right
+				FillGradRect(gr, xRight, yBottom, SCALE(9), 1, 179, 0, grCol.styleProgressBarLineBottom); // Bottom right
+			}
+			else {
+				FillGradRect(gr, this.x, this.y, this.w, this.h, angle, 0, grCol.styleProgressBar);
+			}
+
+			const lineX1 = this.x + (styleRounded ? SCALE(12) : 0);
+			const lineX2 = this.x + this.w - (styleRounded ? SCALE(12) : 1);
+			gr.DrawLine(lineX1, this.y, lineX2, this.y, 1, grCol.styleProgressBarLineTop);
+			gr.DrawLine(lineX1, this.y + this.h, lineX2, this.y + this.h, 1, grCol.styleProgressBarLineBottom);
+		}
+	}
+
+	/**
+	 * Draws the progress bar fill.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawProgressBarFill(gr) {
+		this.progressLength = 0;
+		if (!fb.IsPlaying || ![this.w, this.h, fb.PlaybackLength].every(value => Number.isFinite(value) && value > 0) ||
+			!Number.isFinite(fb.PlaybackTime)) return;
+
+		const playbackRatio = Math.max(0, Math.min(1, fb.PlaybackTime / fb.PlaybackLength));
+		this.progressLength = Math.floor(this.w * playbackRatio);
+		if (this.progressLength <= 0) return;
+
+		const drawBarDesign = {
+			default: () => gr.FillSolidRect(this.x, this.y, this.progressLength, this.h, grCol.progressBarFill),
+			rounded: () => FillRoundRect(gr, this.x, this.y, this.progressLength, this.h, this.arc, this.arc, grCol.progressBarFill),
+			lines:   () => this.drawBarDesignLines(gr),
+			blocks:  () => this.drawBarDesignBlocks(gr),
+			dots:    () => this.drawBarDesignDots(gr),
+			thin:    () => this.drawBarDesignThin(gr)
+		};
+
+		drawBarDesign[grSet.styleProgressBarDesign]();
+
+		if (!['dots', 'thin'].includes(grSet.styleProgressBarDesign) && ['bevel', 'inner'].includes(grSet.styleProgressBarFill)) {
+			if (grSet.styleProgressBarDesign === 'rounded') {
+				FillGradRoundRect(gr, this.x, this.y, this.progressLength + SCALE(2), this.h + SCALE(2), this.arc, this.arc, grSet.styleProgressBarFill === 'inner' ? -88 : 88, 0, grCol.styleProgressBarFill);
+			} else {
+				FillGradRect(gr, this.x, this.y, this.progressLength, this.h, grSet.styleProgressBarFill === 'inner' ? -90 : 89, 0, grCol.styleProgressBarFill);
+			}
+		}
+		else if (grSet.styleProgressBarFill === 'blend' && grm.ui.albumArt && grCol.imgBlended) {
+			if (grSet.styleProgressBarDesign === 'rounded') {
+				FillBlendedRoundRect(gr, this.x, this.y, this.progressLength + SCALE(2), this.h + SCALE(2), this.arc, this.arc, 88, grCol.imgBlended, 0);
+			} else {
+				const image = grCol.imgBlended;
+				if ([image.Width, image.Height].every(value => Number.isFinite(value) && value > 0)) {
+					const sourceY = Math.min(this.h, Math.max(0, image.Height - 1));
+					gr.DrawImage(image, this.x, this.y, this.progressLength, this.h, 0, sourceY, image.Width, image.Height - sourceY);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Draws the progress bar fill in lines design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignLines(gr) {
+		gr.FillSolidRect(this.x + this.progressLength, this.y, SCALE(2), grm.ui.seekbarHeight, grCol.progressBarFill);
+
+		for (let progressLine = 0; progressLine < this.progressLength; progressLine += SCALE(4)) {
+			gr.DrawLine(this.x + progressLine + SCALE(2), this.y, this.x + progressLine + SCALE(2), this.y + this.h, SCALE(2), grCol.progressBarFill);
+		}
+	}
+
+	/**
+	 * Draws the progress bar fill in blocks design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignBlocks(gr) {
+		for (let progressLine = 0; progressLine < this.progressLength; progressLine += grm.ui.seekbarHeight + SCALE(2)) {
+			gr.FillSolidRect(this.x + progressLine, this.y + SCALE(2), grm.ui.seekbarHeight, grm.ui.seekbarHeight - SCALE(4), grCol.progressBarFill);
+		}
+
+		gr.FillSolidRect(this.x + this.progressLength, this.y + 1, grm.ui.seekbarHeight, grm.ui.seekbarHeight - 1, grCol.progressBar);
+		FillGradRect(gr, this.x + this.progressLength, this.y + 1, grm.ui.seekbarHeight, grm.ui.seekbarHeight - 1, grSet.styleProgressBar === 'inner' ? grSet.styleBlackReborn && fb.IsPlaying ? 88 : -88 : grSet.styleBlackReborn && fb.IsPlaying ? -88 : 88, 0, grCol.styleProgressBar);
+	}
+
+	/**
+	 * Draws the progress bar fill in dots design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignDots(gr) {
+		gr.DrawLine(this.x + this.progressLength + SCALE(10), this.y + this.h * 0.5, this.x + this.w, this.y + this.h * 0.5, SCALE(1), grCol.progressBar);
+		for (let progressLine = 0; progressLine < this.progressLength; progressLine += SCALE(8)) {
+			gr.SetSmoothingMode(SmoothingMode.AntiAlias);
+			gr.DrawEllipse(this.x + progressLine, this.y + this.h * 0.5 - SCALE(1), SCALE(2), SCALE(2), SCALE(2), grCol.progressBarFill);
+		}
+
+		const posFix = HD_4K(3, grSet.layout !== 'default' ? 6 : 7);
+		gr.DrawEllipse(this.x + this.progressLength, this.y + this.h * 0.5 - grm.ui.seekbarHeight * 0.5 + SCALE(2), grm.ui.seekbarHeight - SCALE(4), grm.ui.seekbarHeight - SCALE(4), SCALE(2), grCol.progressBarFill); // Knob outline
+		gr.DrawEllipse(this.x + this.progressLength + posFix, this.y + this.h * 0.5 - SCALE(1), SCALE(2), SCALE(2), SCALE(2), grCol.transportIconHovered); // Knob inner
+	}
+
+	/**
+	 * Draws the progress bar fill in thin design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignThin(gr) {
+		gr.DrawLine(this.x, this.y + this.h * 0.5, this.x + this.w, this.y + this.h * 0.5, SCALE(1), grCol.progressBar);
+		gr.SetSmoothingMode(SmoothingMode.AntiAlias);
+		gr.FillSolidRect(this.x, this.y + this.h * 0.5 - SCALE(2), this.progressLength, SCALE(4), grCol.progressBarFill);
+		gr.FillSolidRect(this.x + this.progressLength, this.y + this.h * 0.5 - SCALE(3), SCALE(6), SCALE(6), grCol.progressBarFill);
+	}
+
+	/**
+	 * Sets the vertical progress bar position.
+	 * @param {number} y - The y-coordinate.
+	 */
+	setY(y) {
+		this.y = y;
+	}
+
+	/**
+	 * Sets the playback time of the progress bar.
+	 * @param {number} x - The x-coordinate.
+	 * @private
+	 */
+	setPlaybackTime(x) {
+		const clampedPosition = Clamp((x - this.x) / this.w, 0, 1);
+		const newPlaybackTime = clampedPosition * fb.PlaybackLength;
+		if (fb.PlaybackTime !== newPlaybackTime) {
+			fb.PlaybackTime = newPlaybackTime;
+		}
+	}
+
+	/**
+	 * Sets the refresh rate for the progress bar.
+	 */
+	setRefreshRate() {
+		if (grm.ui.isStreaming) {
+			grm.ui.seekbarTimerInterval = FPS._1;
+		}
+		else if (grSet.progressBarRefreshRate !== 'variable') {
+			grm.ui.seekbarTimerInterval = grSet.progressBarRefreshRate;
+		}
+		else {
+			const pixelsPerMillisecond = (grm.ui.ww - grm.ui.edgeMarginBoth) / fb.PlaybackLength;
+			const FPS_VARIABLE = Math.ceil(1000 / pixelsPerMillisecond);
+			grm.ui.seekbarTimerInterval = Clamp(FPS_VARIABLE, FPS._15, FPS._2);
+		}
+	}
+
+	/**
+	 * Updates the progress bar state.
+	 */
+	repaint() {
+		window.RepaintRect(this.x, this.y, this.w, this.h);
+	}
+	// #endregion
+
+	// * CALLBACKS * //
+	// #region CALLBACKS
+	/**
+	 * Checks if the mouse is within the boundaries of the progress bar.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 * @returns {boolean} True or false.
+	 */
+	mouseInThis(x, y) {
+		return (x >= this.x && y >= this.y && x < this.x + this.w && y <= this.y + this.h);
+	}
+
+	/**
+	 * Handles left mouse button down click events and enables dragging.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 */
+	on_mouse_lbtn_down(x, y) {
+		this.drag = true;
+	}
+
+	/**
+	 * Handles left mouse button up click events and disables dragging and updates the playback time.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 */
+	on_mouse_lbtn_up(x, y) {
+		this.drag = false;
+		if (this.mouseInThis(x, y)) {
+			this.setPlaybackTime(x);
+		}
+	}
+
+	/**
+	 * Handles mouse movement events and updates the playback time based on the mouse movement if a drag event is occurring.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 */
+	on_mouse_move(x, y) {
+		if (this.drag) {
+			this.setPlaybackTime(x);
+		}
+	}
+
+	/**
+	 * Updates progress bar length when playing a new track.
+	 * @param {FbMetadbHandle} metadb - The metadb of the track.
+	 */
+	on_playback_new_track(metadb) {
+		if (!metadb) return;
+		this.progressLength = 0;
+	}
+
+	/**
+	 * Sets the size and position of the progress bar and updates them on window resizing.
+	 * @param {number} w - The width of the window or element.
+	 * @param {number} h - The height of the window or element.
+	 */
+	on_size(w, h) {
+		this.x = grm.ui.edgeMargin;
+		this.y = 0;
+		this.w = w - grm.ui.edgeMarginBoth;
+		this.h = grm.ui.seekbarHeight;
+	}
+	// #endregion
+}
+
+
+///////////////////////
+// * PEAKMETER BAR * //
+///////////////////////
+/**
+ * A class that creates the peakmeter bar in the lower bar when enabled.
+ * Quick access via right click context menu on lower bar.
+ */
+class PeakmeterBar {
+	/**
+	 * Creates the `PeakmeterBar` instance.
+	 */
+	constructor() {
+		// * GEOMETRY - STYLE HORIZONTAL * //
+		// #region GEOMETRY - STYLE HORIZONTAL
+		/** @public @type {number} The x-position of the peakmeter bar. */
+		this.x = grm.ui.edgeMargin;
+		/** @public @type {number} The y-position of the peakmeter bar. */
+		this.y = 0;
+		/** @public @type {number} The width of the peakmeter bar. */
+		this.w = grm.ui.ww - grm.ui.edgeMarginBoth;
+		/** @public @type {number} The secondary width of the peakmeter bar. */
+		this.w2 = 0;
+		/** @public @type {number} The height of the peakmeter bar. */
+		this.h = grm.ui.seekbarHeight;
+		/** @private @type {number} The height of the bar for the peakmeter. */
+		this.bar_h = grSet.layout !== 'default' ? SCALE(2) : SCALE(4);
+		/** @private @type {number} The half height of the bar for the peakmeter. */
+		this.bar2_h = this.bar_h * 0.5;
+		/** @private @type {number} The offset for the peakmeter bar. */
+		this.offset = 0;
+		/** @private @type {number} The middle offset for the peakmeter bar. */
+		this.middleOffset = 0;
+		/** @private @type {number} The middle width for the peakmeter bar. */
+		this.middle_w = 0;
+
+		// * Top
+		/** @private @type {number} The width of the outer left bar. */
+		this.outerLeft_w = 0;
+		/** @private @type {number} The old width of the outer left bar. */
+		this.outerLeft_w_old = 0;
+		/** @private @type {number} The animated width of the outer left bar. */
+		this.outerLeftAnim_w = 0;
+		/** @private @type {number} The x-position of the animated outer left bar. */
+		this.outerLeftAnim_x = 0;
+		/** @private @type {number} The offset for the outer left bar. */
+		this.outerLeft_k = 0;
+
+		/** @private @type {number} The x-position of the main left bar. */
+		this.mainLeft_x = 0;
+		/** @private @type {number} The x-position of the animated main left bar. */
+		this.mainLeftAnim_x = 0;
+		/** @private @type {number} The secondary x-position of the animated main left bar. */
+		this.mainLeftAnim2_x = 0;
+		/** @private @type {number} The offset for the main left bar. */
+		this.mainLeft_k = 0;
+		/** @private @type {number} The secondary offset for the main left bar. */
+		this.mainLeft2_k = 0;
+
+		// * Bottom
+		/** @private @type {number} The width of the outer right bar. */
+		this.outerRight_w = 0;
+		/** @private @type {number} The old width of the outer right bar. */
+		this.outerRight_w_old = 0;
+		/** @private @type {number} The animated width of the outer right bar. */
+		this.outerRightAnim_w = 0;
+		/** @private @type {number} The x-position of the animated outer right bar. */
+		this.outerRightAnim_x = 0;
+		/** @private @type {number} The offset for the outer right bar. */
+		this.outerRight_k = 0;
+
+		/** @private @type {number} The x-position of the main right bar. */
+		this.mainRight_x = 0;
+		/** @private @type {number} The x-position of the animated main right bar. */
+		this.mainRightAnim_x = 0;
+		/** @private @type {number} The secondary x-position of the animated main right bar. */
+		this.mainRightAnim2_x = 0;
+		/** @private @type {number} The offset for the main right bar. */
+		this.mainRight_k = 0;
+		/** @private @type {number} The secondary offset for the main right bar. */
+		this.mainRight2_k = 0;
+		// #endregion
+
+		// * GEOMETRY - STYLE VERTICAL * //
+		// #region GEOMETRY - STYLE VERTICAL
+		/** @private @type {number} The vertical offset for the bar. */
+		this.vertBar_offset = 0;
+		/** @private @type {number} The vertical width of the bar. */
+		this.vertBar_w = 0;
+		/** @private @type {number} The vertical height of the bar. */
+		this.vertBar_h = 0;
+		/** @private @type {number} The x-coordinate for the left vertical bar. */
+		this.vertLeft_x = 0;
+		/** @private @type {number} The x-coordinate for the right vertical bar. */
+		this.vertRight_x = 0;
+		// #endregion
+
+		// * PROGRESS BAR * //
+		// #region PROGRESS BAR
+		/** @public @type {number} The length of the progress bar. */
+		this.progressLength = 0;
+		/** @private @type {boolean} The state indicating whether the progress bar is being dragged. */
+		this.drag = false;
+		// #endregion
+
+		// * MOUSE EVENTS * //
+		// #region MOUSE EVENTS
+		/** @private @type {number} The x-coordinate position of the mouse. */
+		this.pos_x = 0;
+		/** @private @type {number} The y-coordinate position of the mouse. */
+		this.pos_y = 0;
+		/** @private @type {boolean} The state indicating whether the mouse is over the peakmeter bar. */
+		this.on_mouse = false;
+		/** @private @type {boolean} The state indicating whether the mouse wheel is being used. */
+		this.wheel = false;
+		// #endregion
+
+		// * TEXT * //
+		// #region TEXT
+		/** @private @type {GdiFont} The font used for text rendering. */
+		this.textFont = gdi.Font('Segoe UI', HD_4K(9, 16), 1);
+		/** @private @type {number} The width of the text. */
+		this.textWidth = 0;
+		/** @private @type {number} The height of the text. */
+		this.textHeight = 0;
+		/** @private @type {string} The text for the tooltip. */
+		this.tooltipText = '';
+		// #endregion
+
+		// * VOLUME * //
+		// #region VOLUME
+		/** @private @type {number[]} The middle decibel values. */
+		this.db_middle = [];
+		/** @private @type {number[]} The current decibel values. */
+		this.db = [];
+		/** @private @type {object[]} The vertical decibel values. */
+		this.db_vert = {};
+
+		/** @private @type {number} The middle points for the peakmeter. */
+		this.points_middle = 0;
+		/** @private @type {number} The points for the peakmeter. */
+		this.points = 0;
+		/** @private @type {number} The vertical points for the peakmeter. */
+		this.points_vert = 0;
+		/** @private @type {number[]} The left peaks for the peakmeter. */
+		this.leftPeaks_s = [];
+		/** @private @type {number[]} The right peaks for the peakmeter. */
+		this.rightPeaks_s = [];
+		// #endregion
+
+		// * COLORS * //
+		// #region COLORS
+		/** @private @type {number} The separator index for the peakmeter. */
+		this.separator = 0;
+		/** @private @type {number} The first separator value for the peakmeter. */
+		this.sep1 = 0;
+		/** @private @type {number} The second separator value for the peakmeter. */
+		this.sep2 = 0;
+		// #endregion
+
+		// * INITIALIZATION * //
+		// #region INITIALIZATION
+		grm.ui.seekbarTimerInterval = grSet.peakmeterBarRefreshRate === 'variable' ? FPS._10 : grSet.peakmeterBarRefreshRate;
+
+		this.initDecibel();
+		this.initPeaks();
+		this.initPoints();
+		this.initSeparator();
+		this.setColors();
+		// #endregion
+	}
+
+	// * PUBLIC METHODS - DRAW * //
+	// #region PUBLIC METHODS - DRAW
+	/**
+	 * Draws the peakmeter bar in various peakmeter bar designs.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	draw(gr) {
+		if (!fb.IsPlaying || !AudioWizard) {
+			gr.FillSolidRect(this.x, this.y, this.w, this.h, grCol.bg);
+			gr.FillSolidRect(this.x, grm.ui.seekbarY, this.w, SCALE(grSet.layout !== 'default' ? 10 : 12), grCol.progressBar);
+			return;
+		}
+
+		if (grSet.peakmeterBarRefreshRate === 'variable' || grm.debug.showDrawExtendedTiming) {
+			grm.ui.seekbarProfiler.Reset();
+		}
+
+		this.drawPeakmeterBar(gr);
+		this.setAnimation();
+		this.setMonitoring();
+		this.setRefreshRate();
+	}
+
+	/**
+	 * Draws the peakmeter bar design based on design setting.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawPeakmeterBar(gr) {
+		const drawBarDesign = {
+			horizontal:        () => this.drawBarDesignHorizontal(gr),
+			horizontal_center: () => this.drawBarDesignCenter(gr),
+			vertical:          () => this.drawBarDesignVertical(gr)
+		};
+
+		drawBarDesign[grSet.peakmeterBarDesign]();
+	}
+
+	/**
+	 * Draws the horizontal peakmeter bar design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignHorizontal(gr) {
+		this.drawBarGrid(gr);
+
+		for (let i = 0; i <= this.points; i++) {
+			const color = this.color[i];
+			const db = this.db[i];
+			const dbNext = this.db[i + 1];
+			const offset = i * this.offset;
+
+			this.drawHorizontalMainBars(gr, db, dbNext, offset, this.leftPeak, this.mainLeftAnim_x, this.mainLeftAnim2_x, 'mainLeft_x', this.mainLeft_y, color);
+			this.drawHorizontalMainBars(gr, db, dbNext, offset, this.rightPeak, this.mainRightAnim_x, this.mainRightAnim2_x, 'mainRight_x', this.mainRight_y, color);
+
+			this.drawHorizontalOuterBars(gr, db, dbNext, offset, this.leftLevel, this.outerLeftAnim_x, this.outerLeftAnim_w, this.outerLeft_y, 'outerLeft_w');
+			this.drawHorizontalOuterBars(gr, db, dbNext, offset, this.rightLevel, this.outerRightAnim_x, this.outerRightAnim_w, this.outerRight_y, 'outerRight_w');
+
+			this.drawOverBars(gr);
+		}
+
+		this.drawMiddleBars(gr);
+		this.drawProgressBar(gr);
+		this.drawBarInfo(gr);
+	}
+
+	/**
+	 * Draws the main bars in the horizontal peakmeter bar design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 * @param {number} db - The current decibel level.
+	 * @param {number} dbNext - The next decibel level.
+	 * @param {number} offset - The offset for drawing.
+	 * @param {number} peak - The peak value.
+	 * @param {number} anim_x - The animation x-coordinate.
+	 * @param {number} anim2_x - The second animation x-coordinate.
+	 * @param {string} main_x - The main x-coordinate property key name.
+	 * @param {number} main_y - The main y-coordinate.
+	 * @param {number} color - The color of the bar.
+	 * @private
+	 */
+	drawHorizontalMainBars(gr, db, dbNext, offset, peak, anim_x, anim2_x, main_x, main_y, color) {
+		if (peak <= db) return;
+
+		if (peak < dbNext) this[main_x] = offset;
+
+		if (grSet.peakmeterBarMainBars) {
+			gr.FillSolidRect(this.x + offset, main_y, this.w2, this.bar_h, color);
+		}
+
+		if (grSet.peakmeterBarMainPeaks) {
+			const color = this.color[Math.round(this.mainLeftAnim_x / this.offset)];
+			gr.FillSolidRect(this.x + anim_x + this.offset, main_y, this.w2 * 0.66, this.bar_h, color);
+
+			const x = Clamp(this.x + anim2_x + this.offset + this.w2 * 0.66, this.x, this.x + this.w - this.w2 * 0.33);
+			const w = x > this.w + this.w2 * 0.5 ? 0 : this.w2 * 0.33;
+			gr.FillSolidRect(x, main_y, w, this.bar_h, color);
+		}
+	}
+
+	/**
+	 * Draws the outer bars in the horizontal peakmeter bar design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 * @param {number} db - The current decibel level.
+	 * @param {number} dbNext - The next decibel level.
+	 * @param {number} offset - The offset for drawing.
+	 * @param {number} level - The level value.
+	 * @param {number} anim_x - The animation x-coordinate.
+	 * @param {number} anim_w - The animation width.
+	 * @param {number} outer_y - The outer y-coordinate.
+	 * @param {string} outer_w - The outer width property key name.
+	 * @private
+	 */
+	drawHorizontalOuterBars(gr, db, dbNext, offset, level, anim_x, anim_w, outer_y, outer_w) {
+		if (level <= db) return;
+
+		if (level < dbNext) {
+			this[outer_w] = offset + this.offset / Math.abs(dbNext - db) * Math.abs(level - db) - this.x;
+		}
+
+		if (grSet.peakmeterBarOuterBars) {
+			gr.FillSolidRect(this.x, outer_y, this[outer_w], this.bar_h, this.color[1]);
+		}
+
+		if (grSet.peakmeterBarOuterPeaks) {
+			const x = Clamp(this.x + anim_x, this.x, this.x + this.w - anim_w);
+			gr.FillSolidRect(x, outer_y, anim_w <= 0 ? 2 : anim_w, this.bar_h, this.color[1]);
+		}
+	}
+
+	/**
+	 * Draws the horizontal center peakmeter bar design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignCenter(gr) {
+		this.drawBarGrid(gr);
+
+		for (let i = 0; i <= this.points; i++) {
+			const color = this.color[i];
+			const db = this.db[i];
+			const dbNext = this.db[i + 1];
+			const offset = i * this.offset;
+			const mainLeft_x = this.x * 0.5 + this.w * 0.5 - i * this.offset + this.w2;
+			const mainRight_x = this.x + this.w * 0.5 + i * this.offset - this.w2;
+
+			this.drawCenterMainBars(gr, db, dbNext, offset, this.leftPeak, this.mainLeftAnim_x, this.mainLeftAnim2_x, mainLeft_x, mainRight_x, 'mainLeft_x', this.mainLeft_y, color);
+			this.drawCenterMainBars(gr, db, dbNext, offset, this.rightPeak, this.mainRightAnim_x, this.mainRightAnim2_x, mainLeft_x, mainRight_x, 'mainRight_x', this.mainRight_y, color);
+
+			this.drawCenterOuterBars(gr, db, dbNext, offset, this.leftLevel, this.outerLeftAnim_x, this.outerLeftAnim_w, this.outerLeft_y, 'outerLeft_w');
+			this.drawCenterOuterBars(gr, db, dbNext, offset, this.rightLevel, this.outerRightAnim_x, this.outerRightAnim_w, this.outerRight_y, 'outerRight_w');
+
+			this.drawOverBars(gr);
+		}
+
+		this.drawMiddleBars(gr);
+		this.drawProgressBar(gr);
+		this.drawBarInfo(gr);
+	}
+
+	/**
+	 * Draws the main bars in the horizontal center peakmeter bar design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 * @param {number} db - The current decibel level.
+	 * @param {number} dbNext - The next decibel level.
+	 * @param {number} offset - The offset for drawing.
+	 * @param {number} peak - The peak value.
+	 * @param {number} anim_x - The animation x-coordinate.
+	 * @param {number} anim2_x - The second animation x-coordinate.
+	 * @param {number} mainLeft_x - The main left x-coordinate.
+	 * @param {number} mainRight_x - The main right x-coordinate.
+	 * @param {string} main_x - The main x-coordinate property key name.
+	 * @param {number} main_y - The main y-coordinate.
+	 * @param {string} color - The color of the bar.
+	 * @private
+	 */
+	drawCenterMainBars(gr, db, dbNext, offset, peak, anim_x, anim2_x, mainLeft_x, mainRight_x, main_x, main_y, color) {
+		if (peak <= db) return;
+
+		if (peak < dbNext) this[main_x] = offset;
+
+		if (grSet.peakmeterBarMainBars) {
+			gr.FillSolidRect(mainLeft_x,  main_y, this.w2, this.bar_h, color);
+			gr.FillSolidRect(mainRight_x, main_y, this.w2, this.bar_h, color);
+		}
+
+		if (grSet.peakmeterBarMainPeaks) {
+			const color = this.color[Math.round(anim_x / this.offset)];
+			const xLeft  = this.x * 0.5 + this.w * 0.5 - (anim_x + this.offset) + this.w2 * 0.33;
+			const xRight = this.x + anim_x + this.offset + this.w * 0.5;
+			gr.FillSolidRect(xLeft,  main_y, this.w2 * 0.66, this.bar_h, color);
+			gr.FillSolidRect(xRight, main_y, this.w2 * 0.66, this.bar_h, color);
+
+			const xLeftPeaks  = this.x + this.w * 0.5 - anim2_x - this.offset - this.w2 * 0.66;
+			const wLeftPeaks  = xLeftPeaks < this.x + this.w2 * 0.5 ? 0 : this.w2 * 0.33;
+			const xRightPeaks = this.x + this.w * 0.5 + anim2_x + this.offset + this.w2 * 0.66;
+			const wRightPeaks = xRightPeaks > this.w + this.w2 * 0.5 ? 0 : this.w2 * 0.33;
+			gr.FillSolidRect(xLeftPeaks,  main_y, wLeftPeaks,  this.bar_h, color);
+			gr.FillSolidRect(xRightPeaks, main_y, wRightPeaks, this.bar_h, color);
+		}
+	}
+
+	/**
+	 * Draws the outer bars in the horizontal center peakmeter bar design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 * @param {number} db - The current decibel level.
+	 * @param {number} dbNext - The next decibel level.
+	 * @param {number} offset - The offset for drawing.
+	 * @param {number} level - The level value.
+	 * @param {number} anim_x - The animation x-coordinate.
+	 * @param {number} anim_w - The animation width.
+	 * @param {number} outer_y - The outer y-coordinate.
+	 * @param {string} outer_w - The outer width property name.
+	 * @private
+	 */
+	drawCenterOuterBars(gr, db, dbNext, offset, level, anim_x, anim_w, outer_y, outer_w) {
+		if (level <= db) return;
+
+		if (level < dbNext) {
+			this[outer_w] = offset + this.offset / Math.abs(dbNext - db) * Math.abs(level - db) - this.x;
+		}
+
+		if (grSet.peakmeterBarOuterBars) {
+			const xLeft = Clamp(this.x + this.w * 0.5 - this[outer_w], this.x, this.w * 0.5);
+			const xRight = this.x + this.w * 0.5;
+			const w = Clamp(this[outer_w], 0, this.w * 0.5);
+			gr.FillSolidRect(xLeft,  outer_y, w, this.bar_h, this.color[1]);
+			gr.FillSolidRect(xRight, outer_y, w, this.bar_h, this.color[1]);
+		}
+
+		if (grSet.peakmeterBarOuterPeaks) {
+			const x = Clamp(this.x + anim_x, this.x, this.x + this.w * 0.5 - anim_w);
+			const w = anim_w <= 0 ? 2 : anim_w;
+			const xLeftPeaks  = this.w * 0.5 + this.x * 2 - x - w;
+			const xRightPeaks = this.w * 0.5 + x;
+			gr.FillSolidRect(xLeftPeaks,  outer_y, w, this.bar_h, this.color[1]);
+			gr.FillSolidRect(xRightPeaks, outer_y, w, this.bar_h, this.color[1]);
+		}
+	}
+
+	/**
+	 * Draws the vertical peakmeter bar design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignVertical(gr) {
+		const peakL = Math.round(this.leftPeak);
+		const peakR = Math.round(this.rightPeak);
+		const vertBarH = this.vertBar_h * 1.5;
+
+		const toleranceBase = 0.05;
+		const toleranceMin = 0.1;
+		const toleranceMax = 1.0;
+		const toleranceL = Clamp(toleranceBase * Math.abs(peakL), toleranceMin, toleranceMax);
+		const toleranceR = Clamp(toleranceBase * Math.abs(peakR), toleranceMin, toleranceMax);
+
+		for (let i = 0; i < this.points_vert; i++) {
+			const dbL = this.db_vert[i];
+			const dbR = this.db_vert[this.points_vert - 1 - i];
+			const offset = this.vertBar_offset * i;
+
+			if (Math.abs(peakL - dbL) <= toleranceL) this.leftPeaks_s[i] = vertBarH;
+			if (Math.abs(peakR - dbR) <= toleranceR) this.rightPeaks_s[i] = vertBarH;
+
+			this.drawVerticalPeaks(gr, this.vertLeft_x, offset, this.leftPeaks_s[i]);
+			this.drawVerticalPeaks(gr, this.vertRight_x, offset, this.rightPeaks_s[i]);
+		}
+
+		if (grSet.peakmeterBarVertBaseline) {
+			gr.FillSolidRect(this.x, this.y + this.h - this.vertBar_h, this.w, this.vertBar_h, grCol.peakmeterBarProg);
+		}
+
+		this.drawProgressBar(gr);
+		this.drawBarInfo(gr);
+	}
+
+	/**
+	 * Draws the peaks in the vertical peakmeter bar design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 * @param {number} xBase - The base x-coordinate.
+	 * @param {number} offset - The offset for drawing.
+	 * @param {number} peak_s - The peak value.
+	 * @private
+	 */
+	drawVerticalPeaks(gr, xBase, offset, peak_s) {
+		const x = xBase + offset;
+		const y = this.y + peak_s - this.vertBar_h;
+
+		if (peak_s <= this.h) {
+			const h = Math.min(this.h - peak_s, this.h);
+			gr.FillSolidRect(x, y, this.vertBar_w, h, grCol.peakmeterBarVertFill);
+		}
+
+		if (grSet.peakmeterBarVertPeaks && peak_s >= 0) {
+			gr.FillSolidRect(x, y, this.vertBar_w, this.vertBar_h, grCol.peakmeterBarVertFillPeaks);
+		}
+	}
+
+	/**
+	 * Draws the over bars in the peakmeter bar designs.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 * @private
+	 */
+	drawOverBars(gr) {
+		if (!grSet.peakmeterBarOverBars) return;
+
+		const widthSize = grSet.peakmeterBarDesign === 'horizontal' ? 1 : 0.5;
+		const overLeft  = this.outerLeftAnim_x  + this.outerLeftAnim_w  - (this.w * widthSize);
+		const overRight = this.outerRightAnim_x + this.outerRightAnim_w - (this.w * widthSize);
+
+		const outerAnim     = this.outerLeftAnim_x - this.outerLeftAnim_w;
+		const outerAnimHalf = outerAnim * 0.5;
+
+		const xLeft   = this.w - overLeft  - this.x;
+		const xRight  = this.w - overRight - this.x;
+		const xLeft2  = Clamp(this.w * 0.5 - overLeft  - outerAnim, this.x, this.w * 0.5);
+		const xRight2 = Clamp(this.w * 0.5 - overRight - outerAnim, this.x, this.w * 0.5);
+
+		const wLeft   = this.w - xLeft  + this.x;
+		const wRight  = this.w - xRight + this.x;
+		const wLeft2  = this.w - xLeft  + outerAnimHalf;
+		const wRight2 = this.w - xRight + outerAnimHalf;
+
+		if (overLeft > 0) { // Top
+			gr.FillSolidRect(xLeft, this.overLeft_y, wLeft, this.bar2_h, this.color[10]);
+			grSet.peakmeterBarDesign === 'horizontal_center' && gr.FillSolidRect(xLeft2, this.overLeft_y, wLeft2, this.bar2_h, this.color[10]);
+		}
+		if (overRight > 0) { // Bottom
+			gr.FillSolidRect(xRight, this.overRight_y, wRight, this.bar2_h, this.color[10]);
+			grSet.peakmeterBarDesign === 'horizontal_center' && gr.FillSolidRect(xRight2, this.overRight_y, wRight2, this.bar2_h, this.color[10]);
+		}
+	}
+
+	/**
+	 * Draws the middle bars in the peakmeter bar designs.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 * @private
+	 */
+	drawMiddleBars(gr) {
+		if (!grSet.peakmeterBarMiddleBars) return;
+
+		if (grSet.peakmeterBarDesign === 'horizontal') {
+			for (let i = 0; i <= this.points_middle; i++) {
+				const dbMiddle = this.db_middle[i];
+				const x = this.x + i * this.middleOffset;
+
+				if (this.leftPeak > dbMiddle) {
+					gr.FillSolidRect(x, this.middleLeft_y, this.middle_w, this.bar2_h, grCol.peakmeterBarProgFill);
+				}
+				if (this.rightPeak > dbMiddle) {
+					gr.FillSolidRect(x, this.middleRight_y, this.middle_w, this.bar2_h, grCol.peakmeterBarProgFill);
+				}
+			}
+		}
+		else if (grSet.peakmeterBarDesign === 'horizontal_center') {
+			for (let i = 0; i <= this.points_middle; i++) {
+				const dbMiddle = this.db_middle[i];
+				const x1 = this.x * 0.5 + this.w * 0.5 - i * this.middleOffset + 1;
+				const x2 = this.x + this.w * 0.5 + i * this.middleOffset - 1;
+
+				if (this.leftPeak > dbMiddle) {
+					gr.FillSolidRect(x1, this.middleLeft_y, this.middle_w, this.bar2_h, grCol.peakmeterBarProgFill);
+					gr.FillSolidRect(x2, this.middleLeft_y, this.middle_w, this.bar2_h, grCol.peakmeterBarProgFill);
+				}
+				if (this.rightPeak > dbMiddle) {
+					gr.FillSolidRect(x1, this.middleRight_y, this.middle_w, this.bar2_h, grCol.peakmeterBarProgFill);
+					gr.FillSolidRect(x2, this.middleRight_y, this.middle_w, this.bar2_h, grCol.peakmeterBarProgFill);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Draws the progress bar in the peakmeter bar designs.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 * @private
+	 */
+	drawProgressBar(gr) {
+		if (!fb.IsPlaying || fb.PlaybackLength <= 0 || !grSet.peakmeterBarProgBar) return;
+
+		const playbackRatio = fb.PlaybackTime / fb.PlaybackLength;
+		this.progressLength = Math.floor(this.w * (grSet.peakmeterBarDesign === 'horizontal_center' ? 0.5 : 1) * playbackRatio);
+
+		if (grSet.peakmeterBarDesign === 'horizontal') {
+			gr.FillSolidRect(this.x, this.middleLeft_y, this.w, this.bar_h, grCol.peakmeterBarProg);
+			gr.FillSolidRect(this.x, this.middleLeft_y, this.progressLength, this.bar_h, grCol.peakmeterBarProgFill);
+		}
+		else if (grSet.peakmeterBarDesign === 'horizontal_center') {
+			gr.FillSolidRect(this.x, this.middleLeft_y, this.w, this.bar_h, grCol.peakmeterBarProg);
+			gr.FillSolidRect(this.x + this.w * 0.5 - this.progressLength, this.middleLeft_y, this.progressLength, this.bar_h, grCol.peakmeterBarProgFill);
+			gr.FillSolidRect(this.x + this.w * 0.5, this.middleLeft_y, this.progressLength, this.bar_h, grCol.peakmeterBarProgFill);
+		}
+		else if (grSet.peakmeterBarDesign === 'vertical') {
+			gr.FillSolidRect(this.x, this.y + this.h - this.vertBar_h, this.w, this.bar_h, grCol.peakmeterBarProg);
+			gr.FillSolidRect(this.x, this.y + this.h - this.vertBar_h, this.progressLength, this.bar_h, grCol.peakmeterBarVertProgFill);
+		}
+	}
+
+	/**
+	 * Draws the grid in the peakmeter bar designs.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarGrid(gr) {
+		if (!grSet.peakmeterBarGrid) return;
+		gr.FillSolidRect(this.x, this.outerLeft_y, this.w, this.bar_h, grCol.peakmeterBarProg);
+		gr.FillSolidRect(this.x, this.outerRight_y, this.w, this.bar_h, grCol.peakmeterBarProg);
+	}
+
+	/**
+	 * Draws the bar info in the peakmeter bar designs.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarInfo(gr) {
+		if (!grSet.peakmeterBarInfo) return;
+
+		const infoTextColor = grCol.lowerBarArtist;
+
+		if (grSet.peakmeterBarDesign === 'horizontal') {
+			const text_db_w = gr.CalcTextWidth('db', this.textFont);
+
+			for (let i = 4; i <= this.points; i += 2) {
+				const text_w = gr.CalcTextWidth(this.db[i], this.textFont);
+				gr.GdiDrawText(this.db[i], this.textFont, infoTextColor, this.x + this.offset * i - text_w * 0.5, this.text_y, this.w, this.h);
+			}
+
+			gr.GdiDrawText('db', this.textFont, infoTextColor, this.x + this.offset * 2 - text_db_w, this.text_y, this.w, this.h);
+		}
+		else if (grSet.peakmeterBarDesign === 'horizontal_center') {
+			const text_db_w = gr.CalcTextWidth('db', this.textFont);
+
+			for (let i = 4; i <= this.points; i += 2) {
+				const textRight_w = gr.CalcTextWidth(this.db[i], this.textFont);
+				const textLeft_w2 = gr.CalcTextWidth(`${this.db[this.points + 3 - i]}-`, this.textFont);
+
+				gr.GdiDrawText(this.db[i], this.textFont, infoTextColor, this.w * 0.5 + this.offset * i - textRight_w * 0.5, this.text_y, this.w, this.h);
+				gr.GdiDrawText(this.db[this.points + 3 - i], this.textFont, infoTextColor, this.x + this.offset * i - textLeft_w2 * 1.5, this.text_y, this.w, this.h);
+			}
+
+			gr.GdiDrawText('db', this.textFont, infoTextColor, this.w * 0.5 + this.offset * 2 - text_db_w * 0.5, this.text_y, this.w, this.h);
+		}
+		else if (grSet.peakmeterBarDesign === 'vertical') {
+			for (let i = 0; i <= this.points_vert; i++) {
+				const dbLeft = this.db_vert[i];
+				const dbRight = this.db_vert[this.points_vert - 1 - i];
+
+				const textLeft_w = gr.CalcTextWidth(`${dbLeft}--`, this.textFont);
+				const textRight_w = gr.CalcTextWidth(`${dbRight}--`, this.textFont);
+				const textLeft_x = this.vertLeft_x + this.vertBar_offset * i - textLeft_w / 2 + (this.vertBar_offset - this.vertBar_w);
+				const textRight_x = this.vertRight_x + this.vertBar_offset * i - textRight_w / 2 + (this.vertBar_offset - this.vertBar_w);
+
+				gr.GdiDrawText(dbLeft % 2 === 0 ? dbLeft : '', this.textFont, infoTextColor, textLeft_x, this.y, grm.ui.ww, grm.ui.wh);
+				gr.GdiDrawText(dbRight % 2 === 0 ? dbRight : '', this.textFont, infoTextColor, textRight_x, this.y, grm.ui.ww, grm.ui.wh);
+			}
+		}
+	}
+	// #endregion
+
+	// * PUBLIC METHODS - INITIALIZATION * //
+	// #region PUBLIC METHODS - INITIALIZATION
+	/**
+	 * Initializes the decibel arrays for different configurations.
+	 */
+	initDecibel() {
+		this.db = [
+			-20, -19.5, -19, -18.5, -18, -17.5, -17, -16.5, -16, -15.5, -15, -14.5, -14, -13.5, -13, -12.5, -12, -11.5, -11, -10.5,
+			-10, -9.5, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -3.5, -3, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5
+		];
+		this.db_middle = [
+			-70, -65, -62.5, -60, -57.5, -55, -52.5, -50, -47.5, -45, -42.5, -40, -37.5, -35, -32.5, -30, -27.5, -25, -22.5
+		];
+		this.db_vert = {
+			220: [-20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2],
+			215: [-15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2],
+			210: [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2],
+			320: [-20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3],
+			315: [-15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3],
+			310: [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3],
+			520: [-20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5],
+			515: [-15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5],
+			510: [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]
+		}[grSet.peakmeterBarVertDbRange];
+	}
+
+	/**
+	 * Initializes the points for different decibel arrays.
+	 */
+	initPoints() {
+		this.points_middle = this.db_middle.length;
+		this.points = this.db.length;
+		this.points_vert = this.db_vert.length;
+
+		for (let i = 0; i <= this.points_vert; i++) {
+			this.leftPeaks_s[i] = 0;
+			this.rightPeaks_s[i] = 0;
+		}
+	}
+
+	/**
+	 * Initializes the peaks arrays for left and right channels.
+	 */
+	initPeaks() {
+		this.leftPeaks_s  = new Array(this.points_vert + 1).fill(0);
+		this.rightPeaks_s = new Array(this.points_vert + 1).fill(0);
+	}
+
+	/**
+	 * Initializes the separator index based on the decibel array.
+	 */
+	initSeparator() {
+		this.separator = this.db.indexOf(0);
+		this.sep1 = this.separator;
+		this.sep2 = this.points - this.sep1;
+	}
+
+	/**
+	 * Initializes bar geometry properties.
+	 */
+	initGeometry() {
+		this.bar_h = grSet.layout !== 'default' ? SCALE(2) : SCALE(4);
+
+		this.offset       = (grSet.peakmeterBarDesign === 'horizontal_center' ? this.w * 0.5 : this.w) / this.points;
+		this.middleOffset = (grSet.peakmeterBarDesign === 'horizontal_center' ? this.w * 0.5 : this.w) / this.points_middle;
+		this.middle_w     = this.middleOffset - (grSet.peakmeterBarGaps ? 1 : 0);
+		this.w2           = this.offset - (grSet.peakmeterBarGaps ? 1 : 0);
+
+		this.vertBar_offset = ((this.w / this.points_vert) + ((grSet.peakmeterBarVertSize === 'min' ? 2 : grSet.peakmeterBarVertSize) / this.points_vert * 0.5)) * 0.5;
+		this.vertBar_w = grSet.peakmeterBarVertSize === 'min' ? Math.ceil(this.vertBar_offset * 0.1 * 0.5) : this.vertBar_offset - grSet.peakmeterBarVertSize * 0.5;
+		this.vertBar_h = 2;
+		this.vertLeft_x = this.x;
+		this.vertRight_x = this.vertLeft_x + this.vertBar_offset * this.points_vert;
+	}
+	// #endregion
+
+	// * PUBLIC METHODS - COMMON * //
+	// #region PUBLIC METHODS - COMMON
+	/**
+	 * Resets the state of the peakmeter bar.
+	 */
+	reset() {
+		this.leftLevel = 0;
+		this.leftPeak = 0;
+		this.rightLevel = 0;
+		this.rightPeak = 0;
+		this.leftPeaks_s = [];
+		this.rightPeaks_s = [];
+		this.progressLength = 0;
+		this.tooltipText = '';
+	}
+
+	/**
+	 * Sets all vertical peakmeter bar positions.
+	 * Bars are ordered from top to bottom.
+	 * @param {number} y - The y-coordinate.
+	 */
+	setY(y = grm.ui.seekbarY) {
+		this.y = y;
+		this.overLeft_y    = this.y;
+		this.outerLeft_y   = this.overLeft_y    + this.bar2_h;
+		this.mainLeft_y    = this.outerLeft_y   + this.bar_h;
+		this.middleLeft_y  = this.mainLeft_y    + this.bar_h + SCALE(1);
+		this.middleRight_y = this.middleLeft_y  + this.bar2_h;
+		this.mainRight_y   = this.middleRight_y + this.bar2_h + SCALE(1);
+		this.outerRight_y  = this.mainRight_y   + this.bar_h;
+		this.overRight_y   = this.outerRight_y  + this.bar_h;
+		this.text_y        = this.outerRight_y  + this.bar_h * 2;
+	}
+
+	/**
+	 * Monitors volume levels and peaks and sets horizontal or vertical animations based on peakmeterBarDesign.
+	 */
+	setAnimation() {
+		// * Set horizontal animation
+		if (['horizontal', 'horizontal_center'].includes(grSet.peakmeterBarDesign)) {
+			const increment1 = 0.09; // 0.3 ** 2
+			const increment2 = 1.21; // 1.1 ** 2
+
+			// * Main left middle peaks
+			if (this.mainLeftAnim_x <= this.mainLeft_x) {
+				this.mainLeftAnim_x  = this.mainLeft_x;
+				this.mainLeftAnim2_x = this.mainLeft_x;
+				this.mainLeft_k  = 0;
+				this.mainLeft2_k = 0;
+			}
+			this.mainLeft_k      += increment1;
+			this.mainLeftAnim_x  -= this.mainLeft_k;
+			this.mainLeft2_k     += increment2;
+			this.mainLeftAnim2_x += this.mainLeft2_k;
+
+			// * Main right middle peaks
+			if (this.mainRightAnim_x <= this.mainRight_x) {
+				this.mainRightAnim_x  = this.mainRight_x;
+				this.mainRightAnim2_x = this.mainRight_x;
+				this.mainRight_k  = 0;
+				this.mainRight2_k = 0;
+			}
+			this.mainRight_k      += increment1;
+			this.mainRightAnim_x  -= this.mainRight_k;
+			this.mainRight2_k     += increment2;
+			this.mainRightAnim2_x += this.mainRight2_k;
+
+			// * Outer left peaks
+			if (this.outerLeftAnim_x <= this.outerLeft_w) {
+				this.outerLeftAnim_x  = this.outerLeft_w;
+				this.outerLeft_k = 0;
+				this.outerLeftAnim_w = this.outerLeft_w - this.outerLeft_w_old < 1 ? this.outerLeftAnim_w : this.outerLeft_w - this.outerLeft_w_old + 10;
+			} else {
+				this.outerLeft_w_old = this.outerLeft_w;
+			}
+			this.outerLeft_k     += increment1;
+			this.outerLeftAnim_x -= this.outerLeft_k;
+			this.outerLeftAnim_w -= this.outerLeft_k * 2;
+
+			// * Outer right peaks
+			if (this.outerRightAnim_x <= this.outerRight_w) {
+				this.outerRightAnim_x  = this.outerRight_w;
+				this.outerRight_k = 0;
+				this.outerRightAnim_w = this.outerRight_w - this.outerRight_w_old < 1 ? this.outerRightAnim_w : this.outerRight_w - this.outerRight_w_old + 10;
+			} else {
+				this.outerRight_w_old = this.outerRight_w;
+			}
+			this.outerRight_k     += increment1;
+			this.outerRightAnim_x -= this.outerRight_k;
+			this.outerRightAnim_w -= this.outerRight_k * 2;
+		}
+		// * Set vertical animation
+		else if (grSet.peakmeterBarDesign === 'vertical') {
+			for (let j = 0; j < this.leftPeaks_s.length; j++) {
+				this.leftPeaks_s[j] = this.leftPeaks_s[j] < this.h ? this.leftPeaks_s[j] + 2 : this.h;
+			}
+			for (let j = 0; j < this.rightPeaks_s.length; j++) {
+				this.rightPeaks_s[j] = this.rightPeaks_s[j] < this.h ? this.rightPeaks_s[j] + 2 : this.h;
+			}
+		}
+	}
+
+	/**
+	 * Sets the peakmeter bar colors.
+	 * @param {FbMetadbHandle} metadb - The metadb of the track.
+	 */
+	setColors(metadb = fb.GetNowPlaying()) {
+		if (grSet.seekbar !== 'peakmeterbar') return;
+
+		// Colours already come from the theme; decoding album art here is unused
+		// synchronous native work on each track/theme change.
+		this.setDefaultColors();
+
+		this.color = [];
+		this.color1 = [this.c2, this.c3];
+		this.color2 = [this.c3, this.c1];
+
+		for (let j = 0; j < this.sep1; j++) {
+			this.color.push(BlendColors(this.color1[0], this.color1[1], j / this.sep1));
+		}
+		for (let j = 0; j < this.sep2; j++) {
+			this.color.push(BlendColors(this.color2[0], this.color2[1], j / this.sep2));
+		}
+	}
+
+	/**
+	 * Sets the default peakmeter bar colors.
+	 */
+	setDefaultColors() {
+		this.c1 = grCol.peakmeterBarFillMiddle; // RGB(0, 200, 255);
+		this.c2 = grCol.peakmeterBarFillTop; // RGB(255, 255, 0);
+		this.c3 = grCol.peakmeterBarFillBack; // RGB(230, 230, 30);
+		this.color1 = [this.c3, this.c1];
+		this.color2 = [this.c2, this.c3];
+	}
+
+	/**
+	 * Sets monitoring of audio levels and peaks based on playback state.
+	 * Converts and stores volume levels and peaks for both left and right channels in decibels.
+	 */
+	setMonitoring() {
+		if (!AudioWizard) return;
+
+		this.leftLevel = AudioWizard.PeakmeterAdjustedLeftRMS;
+		this.rightLevel = AudioWizard.PeakmeterAdjustedRightRMS;
+		this.leftPeak = AudioWizard.PeakmeterAdjustedLeftSamplePeak;
+		this.rightPeak = AudioWizard.PeakmeterAdjustedRightSamplePeak;
+	}
+
+	/**
+	 * Sets the playback time of the progress bar.
+	 * @param {number} x - The x-coordinate.
+	 * @private
+	 */
+	setPlaybackTime(x) {
+		const clampedPosition = Clamp((x - this.x) / this.w, 0, 1);
+		const newPlaybackTime = clampedPosition * fb.PlaybackLength;
+		if (fb.PlaybackTime !== newPlaybackTime) {
+			fb.PlaybackTime = newPlaybackTime;
+		}
+	}
+
+	/**
+	 * Sets the refresh rate for the peakmeter bar.
+	 */
+	setRefreshRate() {
+		if (grm.ui.isStreaming) { // Radio streaming refresh rate
+			grm.ui.seekbarTimerInterval = FPS._1;
+		}
+		else if (grSet.peakmeterBarRefreshRate !== 'variable') { // Fixed refresh rate
+			grm.ui.seekbarTimerInterval = grSet.peakmeterBarRefreshRate;
+		}
+		else { // Variable refresh rate calculation
+			const now = Date.now();
+			if (this.updateTimeLast && (now - this.updateTimeLast) < 250) return; // Check every 250 ms
+			this.updateTimeLast = now;
+
+			if (this.profilerPaintTimeLast === undefined) {
+				this.profilerPaintTimeLast = grm.ui.seekbarProfiler.Time;
+			}
+
+			const timeDifference = grm.ui.seekbarProfiler.Time - this.profilerPaintTimeLast;
+			grm.ui.seekbarTimerInterval = Clamp(grm.ui.seekbarTimerInterval + (timeDifference > 0 ? 8 : -5), FPS._20, FPS._10);
+			this.profilerPaintTimeLast = grm.ui.seekbarProfiler.Time;
+
+			grm.ui.clearTimer('seekbar', true);
+			grm.ui.seekbarTimer = !fb.IsPaused ? setInterval(() => grm.ui.refreshSeekbar(), grm.ui.seekbarTimerInterval) : null;
+		}
+	}
+
+	/**
+	 * Starts Audio Wizard's peakmeter real-time monitoring.
+	 */
+	startPeakmeter() {
+		const refreshRate = grSet.peakmeterBarRefreshRate === 'variable' ? 17 : grSet.peakmeterBarRefreshRate;
+		AudioWizard && AudioWizard.StartPeakmeterMonitoring(refreshRate, 50);
+	}
+
+	/**
+	 * Stops Audio Wizard's peakmeter real-time monitoring.
+	 */
+	stopPeakmeter() {
+		AudioWizard && AudioWizard.StopPeakmeterMonitoring();
+	}
+	// #endregion
+
+	// * CALLBACKS * //
+	// #region CALLBACKS
+	/**
+	 * Checks if the mouse is within the boundaries of the peakmeter bar.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 * @returns {boolean} True or false.
+	 */
+	mouseInThis(x, y) {
+		return (x >= this.x && y >= this.y && x < this.x + this.w && y <= this.y + this.h);
+	}
+
+	/**
+	 * Handles left mouse button down click events and enables dragging.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 */
+	on_mouse_lbtn_down(x, y) {
+		this.drag = true;
+	}
+
+	/**
+	 * Handles left mouse button up click events and disables dragging and updates the playback time.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 */
+	on_mouse_lbtn_up(x, y) {
+		this.drag = false;
+		if (this.on_mouse && this.mouseInThis(x, y)) {
+			this.setPlaybackTime(x);
+		}
+	}
+
+	/**
+	 * Handle mouse leave events.
+	 */
+	on_mouse_leave() {
+		this.drag = false;
+		this.on_mouse = false;
+	}
+
+	/**
+	 * Handles mouse movement events and updates the playback time based on the mouse movement if a drag event is occurring.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 */
+	on_mouse_move(x, y) {
+		this.on_mouse = true;
+		this.pos_x = x <= this.textWidth ? this.x + this.textWidth : this.x + x;
+		this.pos_y = y <= this.textHeight ? this.textHeight : y;
+
+		if (this.drag) {
+			this.setPlaybackTime(x);
+		}
+
+		if (this.tooltipText) {
+			this.wheel = false;
+			this.tooltipTimer = false;
+			this.tooltipText = '';
+			grm.ttip.stop();
+			window.Repaint();
+		}
+	}
+
+	/**
+	 * Handles mouse wheel events and controls the volume offset.
+	 * @param {number} step - The wheel scroll direction.
+	 */
+	on_mouse_wheel(step) {
+		this.wheel = true;
+
+		if (!AudioWizard) return;
+
+		AudioWizard.PeakmeterOffset = AudioWizard.PeakmeterOffset + step;
+		this.tooltipText = `${Math.round(AudioWizard.PeakmeterOffset)} db`;
+		grm.ttip.showImmediate(this.tooltipText);
+	}
+
+	/**
+	 * Updates peakmeter bar colors when playing a new track.
+	 * @param {FbMetadbHandle} metadb - The metadb of the track.
+	 */
+	on_playback_new_track(metadb) {
+		if (!metadb) return;
+		this.startPeakmeter();
+		this.progressLength = 0;
+		this.setColors(metadb);
+	}
+
+	/**
+	 * Resets the peakmeter bar on playback stop.
+	 * @param {number} reason - The type of playback stop.
+	 */
+	on_playback_stop(reason = -1) {
+		if (['progressbar', 'waveformbar'].includes(grSet.seekbar)) {
+			return;
+		}
+
+		if (reason !== 2) {
+			this.stopPeakmeter();
+			this.reset();
+			window.Repaint();
+		}
+	}
+
+	/**
+	 * Sets the size and position of the peakmeter bar and updates them on window resizing.
+	 */
+	on_size() {
+		this.x = grm.ui.edgeMargin;
+		this.y = grm.ui.seekbarY;
+		this.w = grm.ui.ww - grm.ui.edgeMarginBoth;
+		this.h = grm.ui.seekbarHeight;
+
+		this.initGeometry();
+		this.setY();
+
+		this.textFont = gdi.Font('Segoe UI', HD_4K(9, 16), 1);
+	}
+	// #endregion
+}
+
+
+//////////////////////
+// * WAVEFORM BAR * //
+//////////////////////
+/**
+ * A class that creates the waveform bar in the lower bar when enabled.
+ * Quick access via right click context menu on lower bar.
+ */
+class WaveformBar {
+	/**
+	 * Creates the `WaveformBar` instance.
+	 */
+	constructor() {
+		// * Dependencies
+		include(`${fb.ProfilePath}georgia-reborn\\externals\\Codepages.js`);
+		include(`${fb.ProfilePath}georgia-reborn\\externals\\lz-utf8\\lzutf8.js`);
+		include(`${fb.ProfilePath}georgia-reborn\\externals\\lz-string\\lz-string.min.js`);
+
+		/** @private @type {string} The match pattern used to create folder path. */
+//		this.matchPattern = '$replace($ascii([$replace($if2($meta(ALBUMARTIST,0),$meta(ARTIST,0)),\\,)]\\[$replace([$if3(%original release date%,%originaldate%,%date%,%fy_upload_date%,) - ]%ALBUM%,\\,)]\\%TRACKNUMBER% - $replace(%TITLE%,\\,)), ?,,= ,,?,)';
+//		this.matchPattern = '$replace([$replace([$if3(%original release date%,%originaldate%,%date%,%fy_upload_date%,) - ]%ALBUM%,\\[$replace($if2($meta(ALBUMARTIST,0),$meta(ARTIST,0)),\\,)]\\,)]\\[%DISCNUMBER% - ]%TRACKNUMBER%. $replace(%TITLE%,\\,), ?,,= ,,?,)'; // 替换上行，修复多碟片、多艺术家与中文标题编码数据生成缺失
+        this.matchPattern = '$replace($if2($meta(ALBUM ARTIST),$meta(ARTIST,0))\\[$if3(%original release date%,%originaldate%,%date%,%fy_upload_date%,) - ]%ALBUM%\\[%DISCNUMBER% - ]%TRACKNUMBER%. $replace(%TITLE%,\\,), ?,,= ,,?,)'; // 替换上行，修复多碟片、多艺术家与中文标题编码数据生成缺失
+		/** @private @type {boolean} The debug flag for logging debug information. */
+		this.debug = false;
+		/** @private @type {boolean} The profile flag for logging performance information. */
+		this.profile = false;
+		/** @private @type {FbProfiler} The profiler for logging performance information. */
+		this.profiler = null;
+
+		// * Easy access
+		/** @public @type {number} The x-coordinate of the waveform bar. */
+		this.x = grm.ui.edgeMargin;
+		/** @public @type {number} The y-coordinate of the waveform bar. */
+		this.y = 0;
+		/** @public @type {number} The width of the waveform bar. */
+		this.w = grm.ui.ww - grm.ui.edgeMarginBoth;
+		/** @public @type {number} The height of the waveform bar. */
+		this.h = grm.ui.seekbarHeight;
+
+		// * Internals
+		/** @private @type {boolean} The active state of the waveform bar. */
+		this.active = true;
+		/** @private @type {string} The title format used for the waveform bar. */
+		this.Tf = fb.TitleFormat(this.matchPattern);
+		/** @private @type {number} The maximum step for the title format. */
+		this.TfMaxStep = fb.TitleFormat('[%BPM%]');
+		/** @private @type {string[]} The cache storage for the waveform data. */
+		this.cache = null;
+		/** @private @type {string} The directory for the waveform cache. */
+		this.cacheDir = grSet.customWaveformBarDir ? $(`${grCfg.customWaveformBarDir}`, undefined, true) : `${fb.ProfilePath}cache\\waveform\\`;
+		/** @private @type {string} The code page for character encoding conversion. */
+		this.codePage = convertCharsetToCodepage('UTF-8');
+		/** @private @type {string} The code page for UTF-16LE character encoding conversion. */
+		this.codePageV2 = convertCharsetToCodepage('UTF-16LE');
+		/** @private @type {number} The queue identifier for the waveform bar. */
+		this.queueId = null;
+		/** @private @type {number} The queue interval in milliseconds. */
+		this.queueMs = 1000;
+		/** @private @type {string[]} The current waveform data. */
+		this.current = [];
+		/** @private @type {number[]} The offset values for the waveform data. */
+		this.offset = [];
+		/** @private @type {number} The current step in the waveform animation. */
+		this.step = 0; // 0 - maxStep
+		/** @private @type {number} The maximum step for the waveform animation. */
+		this.maxStep = 4;
+		/** @private @type {number} The current playback time for the waveform bar. */
+		this.time = 0;
+		/** @private @type {boolean} The state indicating if the mouse is down. */
+		this.mouseDown = false;
+		/** @private @type {boolean} The state indicating if the file is allowed. Set at checkAllowedFile(). */
+		this.isAllowedFile = true;
+		/** @private @type {boolean} The state indicating if there was an error. Set at verifyData() after retrying analysis. */
+		this.isError = false;
+		/** @private @type {boolean} Whether AudioWizard is still analyzing a waveform. */
+		this.analysisInProgress = false;
+		/** @private @type {boolean} The state indicating if fallback mode is active. For visualizerFallback, set at checkAllowedFile(). */
+		this.isFallback = false;
+		/** @private @type {number} The number of audio channels in the current waveform data. */
+		this.currentChannels = 1;
+
+		/**
+		 * 波形条分析设置。
+		 * @typedef {object} 波形分析
+		 * @property {string} binaryMode - 分析模式：'audioWizard' | 'visualizer'。
+		 * @property {number} resolution - 时间分辨率（每秒点数）为1-1000，建议的预设范围为：
+		 * -100点/秒：非常高的细节（10ms，用于 EDM 等瞬态重音频）。
+		 * -50点/秒：高细节（20ms，用于母带和详细可视化）。
+		 * -20点/秒：标准细节（50ms，匹配 FFmpeg/astats，非常适合广播）。
+		 * -15点/秒：平衡细节（约67ms，用于流行音乐或爵士乐等平滑音频）。
+		 * -10点/秒：低细节（100ms，用于基本可视化）。
+		 * -5点/秒：非常低的细节（200毫秒，适用于低性能设备，非常流畅的音频）。
+	 	 * -1点/秒：最小细节（1000毫秒，用于在非常慢的设备上进行超最小预览）。
+		 * @property {number} timeout - 波形分析的最大持续时间（毫秒）。
+		 * @property {string} compressionMode - 压缩模式：'none' | 'utf-8' | 'utf-16' | '7zip'。
+		 * @property {string} saveMode - 保存行为：'始终' | '媒体库' | '从不'.
+		 * @property {boolean} autoAnalysis - 是否自动分析文件。
+		 * @property {boolean} autoDelete - 卸载脚本时是否自动删除分析文件。
+		 * @property {boolean} visualizerFallbackAnalysis - 分析文件时是否使用可视化模式。
+		 * @property {boolean} visualizerFallback - 是否对不兼容的文件格式使用可视化模式。
+		 * @public
+		 */
+		/** @public @type {waveformBarAnalysis} */
+		this.analysis = {
+			binaryMode: grSet.waveformBarMode,
+			resolution: grSet.waveformBarResolution,
+			timeout: 60000,
+			compressionMode: 'utf-16',
+			saveMode: grSet.waveformBarSaveMode,
+			autoAnalysis: true,
+			autoDelete: grSet.waveformBarAutoDelete,
+			visualizerFallbackAnalysis: grSet.waveformBarFallbackAnalysis,
+			visualizerFallback: grSet.waveformBarFallback
+		};
+
+		/**
+		 * The waveform bar binary settings.
+		 * @typedef {object} waveformBarBinaries
+		 * @property {string} visualizer - The visualizer binary to use.
+		 * @public
+		 */
+		/** @public @type {waveformBarBinaries} */
+		this.binaries = {
+			audioWizard: Component.AudioWizard,
+			visualizer: `${fb.ProfilePath}running`
+		};
+
+		/**
+		 * The waveform bar compatible file settings.
+		 * @typedef {object} waveformBarCompatibility
+		 * @property {RegExp} audioWizard - The regular expression to test for file types compatible with audioWizard.
+		 * @public
+		 */
+		/** @private @type {waveformBarCompatibility} */
+		this.compatibleFiles = {
+			audioWizardList: ['2sf', 'aa', 'aac', 'ac3', 'ac4', 'aiff', 'ape', 'cue', 'dff', 'dsf', 'dts', 'eac3', 'flac', 'hmi', 'iso', 'la', 'lpcm', 'm4a', 'minincsf', 'mp2', 'mp3', 'mp4', 'mpc', 'ogg', 'ogx', 'opus', 'ra', 'snd', 'shn', 'spc', 'tak', 'tta', 'vgm', 'wav', 'wma', 'wv'],
+			audioWizard: null
+		};
+		for (const key of ['audioWizard']) {
+			this.compatibleFiles[key] = new RegExp(`\\.(${this.compatibleFiles[`${key}List`].join('|')})$`, 'i');
+		}
+
+		/**
+		 * The waveform bar fallback mode settings for visualizerFallbackAnalysis.
+		 * @typedef {object} waveformBarFallbackMode
+		 * @property {boolean} paint - The state that indicates whether to use the paint fallback mode.
+		 * @property {boolean} analysis - The state that indicates whether to use the analysis fallback mode.
+		 * @public
+		 */
+		/** @private @type {waveformBarFallbackMode} */
+		this.fallbackMode = {
+			paint: false,
+			analysis: false
+		};
+
+		/**
+		 * The waveform bar metrics configuration.
+		 * @typedef {object} waveformBarMetricsConfig
+		 * @property {number} count - The number of metrics per frame.
+		 * @property {object} index - The metric names to their frame indexes (e.g., rms: 0).
+		 * @property {object} range - The valid ranges for each metric (e.g., [-100, 0] for dB metrics).
+		 * @property {object} mode - The analysisMode values to metric names (e.g., rms: 'rms').
+		 * @public
+		 */
+		/** @private @type {waveformBarMetricsConfig} */
+		this.metrics = {
+			count: AWGetWaveformDataInfo().metricsPerChannel,
+			index: {
+				rms: 0,
+				rms_peak: 1,
+				sample_peak: 2,
+				min: 3,
+				max: 4
+			},
+			mode: {
+				rms: 'rms',
+				rms_peak: 'rms_peak',
+				sample_peak: 'sample_peak',
+				waveform: 'waveform'
+			},
+			range: {
+				rms: [-100, 0],
+				rms_peak: [-100, 0],
+				sample_peak: [-100, 0],
+				min: [-1, 1],
+				max: [-1, 1]
+			}
+		};
+
+		/**
+		 * The waveform bar preset settings.
+		 * @typedef {object} waveformBarPreset
+		 * @property {string} analysisMode - The waveform bar analysis mode `rms`, `rms_peak`, `sample_peak`, `waveform`.
+		 * @property {string} barDesign - The waveform bar design `waveform`, `bars`, `dots`, `halfbars`.
+		 * @property {string} paintMode - The waveform bar paint mode `full`, `partial`.
+		 * @property {boolean} animate - The flag to display animation.
+		 * @property {boolean} useBPM - The flag to use synced BPM.
+		 * @property {boolean} indicator - The flag to show waveform bar progress indicator.
+		 * @property {boolean} prepaint - The flag to prepaint waveform bar progress.
+		 * @property {number} prepaintFront - The prepaint waveform bar progress length.
+		 * @property {boolean} invertHalfbars - The flag to invert waveform bar halfbars.
+		 * @public
+		 */
+		/** @public @type {waveformBarPreset} */
+		this.preset = {
+			analysisMode: grSet.waveformBarAnalysis,
+			barDesign: grSet.waveformBarDesign,
+			paintMode: grSet.waveformBarPaint,
+			animate: grSet.waveformBarAnimate,
+			useBPM: grSet.waveformBarBPM,
+			indicator: grSet.waveformBarIndicator,
+			prepaint: grSet.waveformBarPrepaint,
+			prepaintFront: grSet.waveformBarPrepaintFront,
+			invertHalfbars: grSet.waveformBarInvertHalfbars
+		};
+
+		/**
+		 * The waveform bar ui settings.
+		 * @typedef {object} waveformBarUI
+		 * @property {number} sizeWave - The width size of drawn waveform.
+		 * @property {number} sizeBars - The width size of drawn bars.
+		 * @property {number} sizeDots - The width size of drawn dots.
+		 * @property {number} sizeHalf - The width size of drawn halfbars.
+		 * @property {number} sizeNormalizeWidth - The visualizer binary to use.
+		 * @property {number} refreshRate - The refresh rate in ms when using animations for any type. 100 is smooth enough but the performance hit is high.
+		 * @public
+		 */
+		/** @public @type {waveformBarUI} */
+		this.ui = {
+			sizeWave: grSet.waveformBarSizeWave,
+			sizeBars: grSet.waveformBarSizeBars,
+			sizeDots: grSet.waveformBarSizeDots,
+			sizeHalf: grSet.waveformBarSizeHalf,
+			sizeNormalizeWidth: grSet.waveformBarSizeNormalize,
+			refreshRate: grSet.waveformBarRefreshRate === 'variable' ? FPS._5 : grSet.waveformBarRefreshRate
+		};
+
+		/**
+		 * The waveform bar wheel settings.
+		 * @typedef {object} waveformBarWheel
+		 * @property {number} seekSpeed - The mouse wheel seek type, 'seconds' or 'percentage.
+		 * @property {string} seekType - The mouse wheel seek speed.
+		 * @public
+		 */
+		/** @public @type {waveformBarWheel} */
+		this.wheel = {
+			seekSpeed: grSet.waveformBarWheelSeekSpeed,
+			seekType: grSet.waveformBarWheelSeekType
+		};
+
+		// * Initialization
+		this.checkConfig();
+		this.defaultSteps();
+		this.setThrottlePaint();
+		if (!IsFolder(this.cacheDir)) { CreateFolder(this.cacheDir); }
+	}
+
+	// * PUBLIC METHODS - DRAW * //
+	// #region PUBLIC METHODS - DRAW
+	/**
+	 * Draws the waveform bar with various designs based on the current settings.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	draw(gr) {
+		if (!fb.IsPlaying) {
+			gr.FillSolidRect(this.x, grm.ui.seekbarY, this.w, SCALE(grSet.layout !== 'default' ? 10 : 12), grCol.progressBar);
+			this.reset();
+			return;
+		}
+
+		if (this.current.length === 0) {
+			this.drawBarInfo(gr);
+			return;
+		}
+
+		if (grSet.waveformBarRefreshRate === 'variable' || grm.debug.showDrawExtendedTiming) {
+			grm.ui.seekbarProfiler.Reset();
+		}
+
+		// * Set shared properties
+		/** @private @type {number} The time constant for the waveform bar calculation. */
+		this.timeConstant = fb.PlaybackLength / this.current.length;
+		/** @private @type {number} The current X position based on playback time. */
+		this.currX = this.x + this.w * ((fb.PlaybackTime / fb.PlaybackLength) || 0);
+		/** @private @type {number} The width of each bar in the waveform. */
+		this.barW = this.w / this.current.length;
+		/** @private @type {boolean} The state whether prepaint mode is active. */
+		this.prepaint = this.preset.paintMode === 'partial' && this.preset.prepaint;
+		/** @private @type {boolean} The state whether visualizer mode is active. */
+		this.visualizer = this.analysis.binaryMode === 'visualizer' || this.isFallback || this.fallbackMode.paint;
+
+		const minPointDiff = 1; // in px
+		const past = [{ x: 0, y: 1 }, { x: 0, y: -1 }];
+		let pastIndex = 0;
+
+		gr.SetSmoothingMode(SmoothingMode.AntiAlias);
+
+		for (let n = 0; n < this.current.length; n++) {
+			const frame = this.current[n];
+			const current = this.timeConstant * n;
+			const isPrepaintAllowed = (current - this.time) < this.preset.prepaintFront;
+
+			/** @private @type {boolean} The state whether the current frame is in prepaint mode. */
+			this.isPrepaint = current > this.time;
+			/** @private @type {number} The scaled size of the current frame. */
+			this.scaledSize = this.h / 2 * frame;
+			/** @private @type {number} The x-position of the current frame. */
+			this.frameX = this.x + this.barW * n;
+
+			// * Exit loop if prepaint mode conditions are met
+			if (this.preset.paintMode === 'partial' && !this.prepaint && this.isPrepaint) break;
+			if (this.prepaint && this.isPrepaint && !isPrepaintAllowed) break;
+			if (!this.offset[n]) this.offset[n] = 0;
+
+			// * Calculate offsets for prepainting and visualizer animation
+			/** @private @type {number} The offset value for prepainting and visualizer animation. */
+			this.offset[n] += (this.prepaint && this.isPrepaint && this.preset.animate || this.visualizer ? // Add movement when pre-painting
+				this.preset.barDesign === 'dots' ? Math.random() * Math.abs(this.step / this.maxStep) :
+				-Math.sign(frame) * Math.random() * this.scaledSize / 10 * this.step / this.maxStep : 0);
+
+			/** @private @type {number} The random offset value for the current frame. */
+			this.offsetRandom = this.preset.barDesign === 'dots' ? this.offset[n] : Math.sign(frame) * this.offset[n];
+
+			// * Draw the waveform bar
+			if (past.every((p) =>
+				(p.y !== Math.sign(frame) && this.preset.barDesign !== 'halfbars') ||
+				(p.y === Math.sign(frame) || this.preset.barDesign === 'halfbars') && (this.frameX - p.x) >= minPointDiff)) {
+				this.drawWaveformBar(gr);
+
+				past[pastIndex] = { x: this.frameX, y: Math.sign(frame) };
+				pastIndex = (pastIndex + 1) % past.length;
+			}
+		}
+
+		this.drawBarProgressLine(gr);
+		this.drawBarAnimation();
+	}
+
+	/**
+	 * Draws the waveform bar based on the preset design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawWaveformBar(gr) {
+		const drawBarDesign = {
+			waveform: () => this.drawBarDesignWaveform(gr),
+			bars:     () => this.drawBarDesignBars(gr),
+			halfbars: () => this.drawBarDesignHalfbars(gr),
+			dots:     () => this.drawBarDesignDots(gr)
+		};
+
+		drawBarDesign[this.preset.barDesign]();
+	}
+
+	/**
+	 * Draws the waveform bar in "waveform" design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignWaveform(gr) {
+		const yOffset = this.scaledSize > 0 ? Math.max(this.scaledSize + this.offsetRandom, 1) : Math.min(this.scaledSize + this.offsetRandom, -1);
+		const zTop = this.visualizer ? Math.abs(yOffset) : yOffset;
+		const zBottom = this.visualizer ? -Math.abs(yOffset) : yOffset;
+		const { sizeWave } = this.ui;
+		const { colorBack, colorFront, colorsDiffer } = this.getColors();
+
+		if (zTop > 0) {
+			if (colorsDiffer) {
+				gr.FillSolidRect(this.frameX, this.y - zTop, sizeWave, zTop / 2, colorBack);
+				gr.FillSolidRect(this.frameX, this.y - zTop / 2, sizeWave, zTop / 2, colorFront);
+			} else {
+				gr.FillSolidRect(this.frameX, this.y - zTop, sizeWave, zTop, colorBack);
+			}
+		}
+
+		if (zBottom < 0) {
+			if (colorsDiffer) {
+				gr.FillSolidRect(this.frameX, this.y - zBottom / 2, sizeWave, -zBottom / 2, colorBack);
+				gr.FillSolidRect(this.frameX, this.y, sizeWave, -zBottom / 2, colorFront);
+			} else {
+				gr.FillSolidRect(this.frameX, this.y, sizeWave, -zBottom, colorBack);
+			}
+		}
+	}
+
+	/**
+	 * Draws the waveform bar in "bars" design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignBars(gr) {
+		const yOffset = this.scaledSize > 0 ? Math.max(this.scaledSize + this.offsetRandom, 1) : Math.min(this.scaledSize + this.offsetRandom, -1);
+		const zTop = this.visualizer ? Math.abs(yOffset) : yOffset;
+		const zBottom = this.visualizer ? -Math.abs(yOffset) : yOffset;
+		const sizeBars = this.barW * this.ui.sizeBars;
+		const { colorBack, colorFront, colorsDiffer } = this.getColors(true, true);
+
+		if (zTop > 0) {
+			if (colorsDiffer) {
+				gr.DrawRect(this.frameX, this.y - zTop, sizeBars, zTop / 2, 1, colorBack);
+				gr.DrawRect(this.frameX, this.y - zTop / 2, sizeBars, zTop / 2, 1, colorFront);
+			} else {
+				gr.DrawRect(this.frameX, this.y - zTop, sizeBars, zTop, 1, colorBack);
+			}
+		}
+
+		if (zBottom < 0) {
+			if (colorsDiffer) {
+				gr.DrawRect(this.frameX, this.y - zBottom / 2, sizeBars, -zBottom / 2, 1, colorBack);
+				gr.DrawRect(this.frameX, this.y, sizeBars, -zBottom / 2, 1, colorFront);
+			} else {
+				gr.DrawRect(this.frameX, this.y, sizeBars, -zBottom, 1, colorBack);
+			}
+		}
+	}
+
+	/**
+	 * Draws the waveform bar in "halfbars" design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignHalfbars(gr) {
+		const yOffset = this.scaledSize > 0 ? Math.max(this.scaledSize + this.offsetRandom, 1) : Math.min(this.scaledSize + this.offsetRandom, -1);
+		const y = this.preset.invertHalfbars ? Math.abs(yOffset) : yOffset;
+		const sizeHalf = this.visualizer ? this.barW * this.ui.sizeHalf * (this.visualizer ? 0.2 : 0.5) : this.ui.sizeHalf;
+		const { colorBack, colorFront, colorsDiffer } = this.getColors(false, true);
+
+		if (y > 0) {
+			if (colorsDiffer) {
+				gr.FillSolidRect(this.frameX, this.y - 2 * y + this.h * 0.5, sizeHalf, y, colorBack);
+				gr.FillSolidRect(this.frameX, this.y - y + this.h * 0.5, sizeHalf, y, colorFront);
+			} else {
+				gr.FillSolidRect(this.frameX, this.y - 2 * y + this.h * 0.5, sizeHalf, 2 * y, colorBack);
+			}
+		}
+	}
+
+	/**
+	 * Draws the waveform bar in "dots" design.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarDesignDots(gr) {
+		const yOffset = this.scaledSize > 0 ? Math.max(this.scaledSize, 1) : Math.min(this.scaledSize, -1);
+		const dotStep = Math.max(this.h / 80, 5) + (this.offsetRandom || 1);
+		const dotSize = Math.max(dotStep / 25, 1) * this.ui.sizeDots;
+		const { colorBack, colorFront } = this.getColors();
+
+		const drawDots = (direction, startY, yOffset, color1, color2) => {
+			const sign = this.visualizer ? direction : Math.sign(yOffset);
+			const step = direction * yOffset / 2;
+			let currentY = startY;
+
+			for (const endY = startY - step; sign * (currentY - endY) > 0; currentY -= sign * dotStep) {
+				gr.DrawEllipse(this.frameX, currentY, dotSize, dotSize, 1, color1);
+			}
+
+			for (const endY = startY - 2 * step; sign * (currentY - endY) > 0; currentY -= sign * dotStep) {
+				gr.DrawEllipse(this.frameX, currentY, dotSize, dotSize, 1, color2);
+			}
+		};
+
+		drawDots(1, this.y, yOffset, colorFront, colorBack);
+		if (!this.visualizer) return;
+		drawDots(-1, this.y, yOffset, colorFront, colorBack);
+	}
+
+	/**
+	 * Draws the progress line on the waveform bar.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarProgressLine(gr) {
+		if (!this.preset.indicator && !this.mouseDown) return;
+
+		gr.SetSmoothingMode(0);
+
+		if (this.analysis.binaryMode === 'audioWizard' || ['waveform', 'dots'].includes(this.preset.barDesign)) {
+			const minBarW = Math.round(Math.max(this.barW, SCALE(1)));
+			gr.DrawLine(this.currX, this.y - this.h * 0.5, this.currX, this.y + this.h * 0.5, minBarW, grCol.waveformBarIndicator);
+		}
+	}
+
+	/**
+	 * Draws information text when waveform data is loading or when it is not available.
+	 * @param {GdiGraphics} gr - The GDI graphics object.
+	 */
+	drawBarInfo(gr) {
+		if (pl.col.row_nowplaying_bg === null) return; // * Wait until nowplaying bg has a new color to prevent flashing
+
+		const DT_CENTER = DrawText.VCenter | DrawText.Center | DrawText.EndEllipsis | DrawText.CalcRect | DrawText.NoPrefix;
+		const bgColor = grSet.theme === 'reborn' ? pl.col.row_nowplaying_bg : grCol.transportEllipseBg;
+		const message =
+			this.analysisInProgress ? '' :
+			!this.isAllowedFile && !this.isFallback && this.analysis.binaryMode !== 'visualizer' ? '文件格式不兼容' :
+			!this.analysis.autoAnalysis ? '未找到波形条文件' :
+			this.isError ? '无法分析波形条文件' :
+			'';
+
+		gr.FillSolidRect(this.x, this.y - this.h * 0.5, this.w, this.h, bgColor);
+		gr.GdiDrawText(message, grFont.lowerBarWave, pl.col.header_artist_normal, this.x, this.y - this.h * 0.5, this.w, this.h, DT_CENTER);
+	}
+
+	/**
+	 * Draw the waveform bar animation.
+	 */
+	drawBarAnimation() {
+		if (this.prepaint && this.preset.animate || this.visualizer) {
+			if (this.step >= this.maxStep) {
+				this.step = -this.step;
+			} else {
+				if (this.step === 0) { this.offset = []; }
+				this.step++;
+			}
+		}
+
+		if (fb.IsPlaying && !fb.IsPaused) {
+			this.setRefreshRate();
+
+			if (this.visualizer) {
+				this.throttlePaint();
+			}
+			else if (this.current.length && (this.prepaint || this.preset.paintMode === 'partial' || this.preset.indicator)) {
+				const paintRect = this.setPaintRect(this.time);
+				this.throttlePaintRect(paintRect.x, paintRect.y, paintRect.width, paintRect.height);
+			}
+		}
+	}
+	// #endregion
+
+	// * PUBLIC METHODS - INITALIZATION * //
+	// #region PUBLIC METHODS - INITALIZATION
+	/**
+	 * Checks if the current file is allowed to be played, i.e not corrupted.
+	 * @param {object} handle - The current file handle.
+	 */
+	checkAllowedFile(handle = fb.GetNowPlaying()) {
+		if (!handle) return;
+
+		const noVisual = this.analysis.binaryMode !== 'visualizer';
+		const validExt = this.checkCompatibleFileExtension(handle);
+
+		this.isAllowedFile = noVisual && validExt;
+		this.isFallback = !this.isAllowedFile && this.analysis.visualizerFallback;
+	}
+
+	/**
+	 * Checks if the file extension of the current file handle is compatible.
+	 * @param {object} handle - The current file handle.
+	 * @param {string} mode - The analysis binary mode.
+	 * @returns {boolean} True if the file extension is compatible, otherwise false.
+	 */
+	checkCompatibleFileExtension(handle = fb.GetNowPlaying(), mode = this.analysis.binaryMode) {
+		return (mode === 'visualizer') || (handle && this.compatibleFiles[mode].test(handle.Path));
+	}
+
+	/**
+	 * Checks the report list of compatible file extensions for the given mode.
+	 * @param {string} mode - The analysis binary mode.
+	 * @returns {Array<string>} An array of compatible file extensions.
+	 */
+	checkCompatibleFileExtensionReport(mode = this.analysis.binaryMode) {
+		return [...this.compatibleFiles[`${mode}List`]];
+	}
+
+	/**
+	 * Checks the configuration for validity, called from the constructor.
+	 */
+	checkConfig() {
+		if (!Object.prototype.hasOwnProperty.call(this.binaries, this.analysis.binaryMode)) {
+			this.analysis.binaryMode = 'visualizer';
+		}
+		if (!this.binaries[this.analysis.binaryMode]) {
+			fb.ShowPopupMessage(`波形条 => 未找到所需依赖项: ${this.analysis.binaryMode}\n\n${JSON.stringify(this.binaries[this.analysis.binaryMode])}`, window.Name);
+		}
+
+		if (this.preset.prepaintFront <= 0 || this.preset.prepaintFront === null) {
+			this.preset.prepaintFront = Infinity;
+		}
+
+		if (this.wheel.seekSpeed < 0) {
+			this.wheel.seekSpeed = 1;
+		} else if (this.wheel.seekSpeed > 100 && this.wheel.seekType === 'percentage') {
+			this.wheel.seekSpeed = 100;
+		}
+	}
+
+	/**
+	 * Updates the config and ensures the UI is being updated properly after changing settings.
+	 * @param {object} newConfig - The new configuration object with settings to be applied.
+	 */
+	updateConfig(newConfig) {
+		if (newConfig) {
+			DeepAssign()(this, newConfig);
+		}
+
+		this.checkConfig();
+		let recalculate = false;
+
+		if (newConfig.preset) {
+			if (this.preset.paintMode === 'partial' && this.preset.prepaint || this.analysis.binaryMode === 'visualizer') {
+				this.offset = [];
+				this.step = 0;
+			}
+			if (Object.prototype.hasOwnProperty.call(newConfig.preset, 'animate') ||
+				Object.prototype.hasOwnProperty.call(newConfig.preset, 'useBPM')) {
+				if (this.preset.animate && this.preset.useBPM) {
+					this.bpmSteps();
+				} else {
+					this.defaultSteps();
+				}
+			}
+		}
+
+		if (newConfig.ui) {
+			if (Object.prototype.hasOwnProperty.call(newConfig.ui, 'refreshRate')) {
+				this.setThrottlePaint();
+			}
+			if (Object.prototype.hasOwnProperty.call(newConfig.ui, 'sizeNormalizeWidth') ||
+				Object.prototype.hasOwnProperty.call(newConfig.ui, 'normalizeWidth')) {
+				recalculate = true;
+			}
+		}
+
+		if (newConfig.analysis) {
+			recalculate = true;
+		}
+
+		if (recalculate) {
+			this.on_playback_new_track();
+		} else {
+			this.throttlePaint();
+		}
+	}
+	// #endregion
+
+	// * PUBLIC METHODS - DATA * //
+	// #region PUBLIC METHODS - DATA
+	/**
+	 * Starts the analysis process of the waveform data and updates the current state.
+	 * @param {FbMetadbHandle} handle - The handle of the current track.
+	 * @param {boolean} isRetry - The flag indicating whether the method call is a retry attempt.
+	 * @returns {Promise<boolean>} The promise that resolves to `true` if analysis is successful, `false` otherwise.
+	 */
+	async analyzeDataStart(handle, isRetry, epoch = this.waveformEpoch) {
+		if (this.analysis.binaryMode === 'visualizer' || this.analysis.visualizerFallbackAnalysis) {
+			this.current = this.visualizerData(handle);
+
+			if (this.analysis.binaryMode === 'visualizer') {
+				this.normalizePoints();
+				return;
+			}
+		}
+
+		const { waveformBarFolder, waveformBarFile, sourceFile } = this.getPaths(handle);
+		const files = this.getFileConfigs();
+		let analysisComplete = false;
+
+		for (const file of files) {
+			const fileWithExt = `${waveformBarFile}${file.ext}`;
+			if (IsFile(fileWithExt)) {
+				const str = Open(fileWithExt, file.codePage) || '';
+				const parsed = file.decompress(str) || {};
+
+				if (parsed.data && Array.isArray(parsed.data)) {
+					this.current = parsed.data;
+					this.currentChannels = parsed.channels || 1;
+				} else {
+					this.current = Array.isArray(parsed) ? parsed : [];
+					this.currentChannels = 1;
+				}
+
+				if (this.verifyData(handle, fileWithExt, isRetry)) {
+					analysisComplete = true;
+					break;
+				}
+			}
+		}
+
+		if (!analysisComplete && this.analysis.autoAnalysis && IsFile(sourceFile)) {
+			if (this.analysis.visualizerFallbackAnalysis && this.isAllowedFile) {
+				this.fallbackMode.analysis = this.fallbackMode.paint = true;
+				this.normalizePoints();
+				if (this.preset.animate && this.preset.useBPM) this.bpmSteps(handle);
+				if (fb.IsPlaying) this.time = fb.PlaybackTime;
+			}
+
+			this.throttlePaint(true);
+			if (this.analysis.visualizerFallbackAnalysis) {
+				this.fallbackMode.analysis = false;
+			}
+
+			await this.analyzeData(handle, waveformBarFolder, waveformBarFile, sourceFile, epoch);
+			if (epoch !== this.waveformEpoch || this.waveformClosed) return;
+			this.fallbackMode.analysis = this.fallbackMode.paint = false;
+			analysisComplete = this.verifyData(handle, undefined, isRetry);
+		}
+
+		this.isFallback = !analysisComplete;
+		this.normalizePoints(this.analysis.binaryMode !== 'visualizer' && this.ui.sizeNormalizeWidth);
+	}
+
+	/**
+	 * Analyzes data of the given handle(s) and saves the results in the waveform bar cache directory.
+	 * @param {FbMetadbHandle|FbMetadbHandleList} handle - The handle(s) to analyze.
+	 * @param {string} waveformBarFolder - The folder where the waveform bar data should be saved.
+	 * @param {string} waveformBarFile - The name of the waveform bar file.
+	 * @param {string} [sourceFile] - The path of the source file.
+	 * @returns {Promise<void>} The promise that resolves when the analysis has finished.
+	 */
+	async analyzeData(handle, waveformBarFolder, waveformBarFile, sourceFile = handle.Path || handle[0].Path, epoch = this.waveformEpoch) {
+		if (!this.isAllowedFile || !AudioWizard || AudioWizard.FullTrackProcessing) return;
+
+		if (!IsFolder(waveformBarFolder)) {
+			CreateFolder(waveformBarFolder);
+		}
+
+		this.analysisInProgress = true;
+		try {
+			const handleList = (handle instanceof FbMetadbHandleList) ? handle :
+				new FbMetadbHandleList(Array.isArray(handle) ? handle : [handle]);
+			const startTime = Date.now();
+
+			grm.debug.debugLog(`音频向导 => 开始波形分析: mode=${this.preset.analysisMode}, resolution=${this.analysis.resolution}`);
+
+			const success = await new Promise((resolve) => {
+				const { metadata } = AWGetMetadata(handleList);
+				AudioWizard.SetFullTrackWaveformCallback((res) => resolve(res));
+				AudioWizard.StartWaveformAnalysis(metadata, this.analysis.resolution);
+			});
+			if (epoch !== this.waveformEpoch || this.waveformClosed) return;
+
+			if (!success) {
+				console.log('音频向导 => 波形分析失败 - API 返回错误');
+				return;
+			}
+
+			const trackCount = AudioWizard.GetWaveformTrackCount();
+			const waveformDataInfo = AWGetWaveformDataInfo();
+			console.log(`音频向导 => 正在处理 ${trackCount} 音轨`);
+
+			if (!waveformDataInfo) {
+				console.log('音频向导 => 波形分析失败：无法检索数据架构 (GetWaveformDataInfo)');
+				return;
+			}
+
+			const { metricsPerChannel } = waveformDataInfo;
+
+			for (let i = 0; i < trackCount; i++) {
+				const trackHandle = handleList[i];
+				const data = [];
+				const waveformData = AudioWizard.GetWaveformData(i);
+				const channels = waveformData.length;
+				const numPoints = channels > 0 ? waveformData[0].length / metricsPerChannel : 0;
+
+				// Build data[pt] = [ch0_rms, ch0_rms_peak, ch0_sp, ch0_min, ch0_max, ch1_rms, ...]
+				for (let pt = 0; pt < numPoints; pt++) {
+					if (pt && pt % 2048 === 0) {
+						await new Promise(resolve => setTimeout(resolve, 0));
+						if (epoch !== this.waveformEpoch || this.waveformClosed) return;
+					}
+					const frame = [];
+					for (let ch = 0; ch < channels; ch++) {
+						const base = pt * metricsPerChannel;
+						for (let m = 0; m < metricsPerChannel; m++) {
+							frame.push(Math.round(waveformData[ch][base + m] * 1000) / 1000);
+						}
+					}
+					data.push(frame);
+				}
+
+				if (this.saveDataAllowed(trackHandle)) {
+					this.analyzeDataSave(waveformBarFile, JSON.stringify({ channels, data }));
+				}
+
+				if (handleList.Count === 1) {
+					this.current = data;
+					this.currentChannels = channels;
+				}
+			}
+
+			grm.debug.debugLog(`音频向导 => 分析完成用时 ${(Date.now() - startTime) / 1000} 秒`);
+			this.throttlePaint();
+		}
+		catch (e) {
+			console.log(`音频向导 => 分析错误: ${e.message}`);
+			AudioWizard.StopWaveformAnalysis();
+		}
+		finally {
+			this.analysisInProgress = false;
+			this.throttlePaint();
+		}
+	}
+
+	/**
+	 * Saves the compressed data to a file.
+	 * @param {string} waveformBarFile - The name of the waveform bar file.
+	 * @param {string} dataStr - The data to be saved.
+	 */
+	analyzeDataSave(waveformBarFile, dataStr) {
+		if (this.analysis.binaryMode === 'visualizer') return;
+
+		const compression = {
+			'utf-16': () => SaveFSO(`${waveformBarFile}.awz.lz16`, LZString.compressToUTF16(dataStr), true),
+			'utf-8':  () => Save(`${waveformBarFile}.awz.lz`, LZUTF8.compress(dataStr, { outputEncoding: 'Base64' })),
+			'none':   () => Save(`${waveformBarFile}.awz.json`, dataStr)
+		};
+
+		(compression[this.analysis.compressionMode] || compression.none)();
+	}
+
+	/**
+	 * Generates data for the visualizer.
+	 * @param {FbMetadbHandle} handle - The handle to analyze.
+	 * @param {string} preset - The preset to use for the visualizer.
+	 * @param {boolean} variableLen - The flag whether the length of the data should be variable.
+	 * @returns {Array} The data for the visualizer bar.
+	 */
+	visualizerData(handle, preset = 'classic spectrum analyzer', variableLen = false) {
+		const barW = this.getBarWidth();
+		const samplesMax = Math.floor(this.w / barW);
+		const samplesTotal = Math.floor(handle.Length * this.analysis.resolution);
+		const samples = variableLen ? samplesTotal : Math.min(samplesMax, samplesTotal);
+		const data = new Array(samples);
+
+		if (preset === 'classic spectrum analyzer') {
+			const third = Math.round(samples / 3);
+			const half = Math.round(samples / 2);
+
+			// * Filling first half
+			for (let i = 0; i < third; i++) {
+				const val = (Math.random() * i) / third;
+				data[i] = val;
+			}
+			for (let i = third; i < half; i++) {
+				const val = (Math.random() * i) / third;
+				data[i] = val;
+			}
+			// * Filling second half with reversed first half
+			for (let i = half, j = 0; i < samples; i++, j++) {
+				data[i] = data[half - 1 - j];
+			}
+		}
+
+		return data;
+	}
+
+	/**
+	 * Checks if the processed waveform data is valid for audioWizard mode.
+	 * @returns {boolean} True if the data is valid.
+	 */
+	validData() {
+		if (!Array.isArray(this.current) || !this.current.length) {
+			return false;
+		}
+
+		const channels = this.currentChannels || 1;
+		const expectedLength = this.metrics.count * channels;
+
+		return this.current.every(frame => {
+			if (!Array.isArray(frame) || frame.length < expectedLength) {
+				return false;
+			}
+
+			// Validate metrics for each channel
+			for (let ch = 0; ch < channels; ch++) {
+				const offset = ch * this.metrics.count;
+
+				for (const [metric, index] of Object.entries(this.metrics.index)) {
+					const value = frame[offset + index];
+					if (typeof value !== 'number' || !isFinite(value)) {
+						return false;
+					}
+					const [min, max] = this.metrics.range[metric];
+					if (value < min || value > max) {
+						return false;
+					}
+				}
+			}
+
+			return true;
+		});
+	}
+
+	/**
+	 * Verifies if the processed data is valid.
+	 * @param {FbMetadbHandle} handle - The handle to analyze.
+	 * @param {string} file - The file to analyze.
+	 * @param {boolean} isRetry - The flag whether the data should be retried.
+	 * @returns {boolean} True if the data is valid.
+	 */
+	verifyData(handle, file, isRetry = false) {
+		if (this.validData()) {
+			this.isError = false;
+			return true;
+		}
+		// A queued retry can run while the previous AudioWizard callback is still pending.
+		// In that case missing data is not an analysis failure yet.
+		if (this.analysisInProgress) return false;
+
+		if (file) DeleteFile(file);
+
+		if (isRetry) {
+			console.log('重试后未成功分析文件。');
+			this.isAllowedFile = false;
+			this.isFallback = this.analysis.visualizerFallback;
+			this.isError = true;
+			this.current = [];
+		} else {
+			console.log(`波形条文件无效。创建新的${file ? `: ${file}` : '.'}`);
+			this.on_playback_new_track(handle, true);
+		}
+
+		return false;
+	}
+
+	/**
+	 * Deletes the waveform file(s) associated with the given track handle.
+	 * @param {FbMetadbHandle} handle - The handle of the track.
+	 */
+	deleteWaveformFile(handle) {
+		if (!handle) return;
+
+		const { waveformBarFile } = this.getPaths(handle);
+		const fileConfigs = this.getFileConfigs();
+
+		for (const config of fileConfigs) {
+			const filePath = `${waveformBarFile}${config.ext}`;
+			if (IsFile(filePath)) {
+				try {
+					DeleteFile(filePath);
+				} catch (e) {
+					console.log(`删除波形文件时出错: ${filePath}`, e);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Deletes the waveform bar cache directory with its processed data.
+	 */
+	removeData() {
+		DeleteFolder(this.cacheDir);
+	}
+
+	/**
+	 * Determines whether data should be saved based on the current analysis save mode and the handle.
+	 * @param {FbMetadbHandle} handle - The handle to check against the save mode and media library.
+	 * @returns {boolean} - Returns `true` if the data should be saved, `false` otherwise.
+	 */
+	saveDataAllowed(handle) {
+		return this.analysis.saveMode === 'always' || (this.analysis.saveMode === 'library' && handle && fb.IsMetadbInMediaLibrary(handle));
+	}
+	// #endregion
+
+	// * PUBLIC METHODS - COMMON * //
+	// #region PUBLIC METHODS - COMMON
+	/**
+	 * Sets the max step based on the BPM of the track.
+	 * @param {object} handle - The handle of the track.
+	 * @returns {number} The max steps.
+	 */
+	bpmSteps(handle = fb.GetNowPlaying()) {
+		if (!handle) return this.defaultSteps();
+
+		// Don't allow anything faster than 2 steps or slower than 10 (scaled to 200 ms refresh rate) and consider setting tracks having 100 BPM as default.
+		const BPM = Number(this.TfMaxStep.EvalWithMetadb(handle));
+		this.maxStep = Math.round(Math.min(Math.max(200 / (BPM || 100) * 2, 2), 10) * (200 / this.ui.refreshRate) ** (1 / 2));
+
+		return this.maxStep;
+	}
+
+	/**
+	 * Sets the max step to a default value.
+	 * @returns {number} The max steps.
+	 */
+	defaultSteps() {
+		this.maxStep = Math.round(4 * (200 / this.ui.refreshRate) ** (1 / 2));
+		return this.maxStep;
+	}
+
+	/**
+	 * Gets the bar width based on the bar design preset.
+	 * @returns {number} The width of the bar corresponding to the design preset.
+	 */
+	getBarWidth() {
+		const barWidth = {
+			waveform: this.ui.sizeWave,
+			bars:     this.ui.sizeBars,
+			dots:     this.ui.sizeDots,
+			halfbars: this.ui.sizeHalf
+		};
+
+		return barWidth[this.preset.barDesign] || 1;
+	}
+
+	/**
+	 * Gets the colors for the waveform bars.
+	 * @param {boolean} useShadeColor - The flag indicating whether to use the ShadeColor for adjustments.
+	 * @param {boolean} highlightCurrentPosition - The flag indicating whether to highlight the current position indicator.
+	 * @returns {object} The object containing colorBack, colorFront and colorsDiffer.
+	 */
+	getColors(useShadeColor = true, highlightCurrentPosition = false) {
+		if (highlightCurrentPosition && (this.preset.indicator || this.mouseDown) && this.analysis.binaryMode === 'audioWizard' &&
+			(this.frameX <= this.currX && this.frameX >= this.currX - 2 * this.barW)) {
+			return { colorBack: grCol.waveformBarIndicator, colorFront: grCol.waveformBarIndicator, colorsDiffer: false };
+		}
+
+		const colorBack = this.prepaint && this.isPrepaint ?
+			useShadeColor ? ShadeColor(grCol.waveformBarFillBack, 40) : grCol.waveformBarFillPreBack :
+			grCol.waveformBarFillBack;
+
+		const colorFront = this.prepaint && this.isPrepaint ?
+			useShadeColor ? ShadeColor(grCol.waveformBarFillFront, 20) : grCol.waveformBarFillPreFront :
+			grCol.waveformBarFillFront;
+
+		return { colorBack, colorFront, colorsDiffer: colorFront !== colorBack };
+	}
+
+	/**
+	 * Gets the configuration for the different file types to be analyzed.
+	 * @returns {Array<object>} An array of file configuration objects. Each object contains:
+	 * - {string} ext - The file extension.
+	 * - {Function} decompress - The function to decompress and parse the file content.
+	 * - {string} codePage - The code page to be used when reading the file.
+	 */
+	getFileConfigs() {
+		return [
+			{ ext: '.awz.json', decompress: JSON.parse, codePage: this.codePage },
+			{ ext: '.awz.lz',   decompress: str => JSON.parse(LZUTF8.decompress(str, { inputEncoding: 'Base64' })), codePage: this.codePage },
+			{ ext: '.awz.lz16', decompress: str => JSON.parse(LZString.decompressFromUTF16(str)), codePage: this.codePageV2 }
+		];
+	}
+
+	/**
+	 * Gets the paths to the waveform bar cache folder and file.
+	 * @param {object} handle - The handle of the track.
+	 * @returns {object} The paths to the waveform bar cache folder and file.
+	 */
+	getPaths(handle) {
+		const id = CleanFilePath(this.Tf.EvalWithMetadb(handle));
+
+		const lastSlash = id.lastIndexOf('\\');
+		const folderPart = (this.saveDataAllowed(handle) && lastSlash !== -1)
+			? id.substring(0, lastSlash + 1)
+			: '';
+
+		const waveformBarFolder = this.cacheDir + folderPart;
+		const waveformBarFile = this.cacheDir + id;
+		const sourceFile = AudioWizard ? AudioWizard.GetPhysicalFilePath(handle.RawPath) : handle.Path;
+
+		return { waveformBarFolder, waveformBarFile, sourceFile };
+	}
+
+	/**
+	 * Gets the maximum and minimum values from the frames.
+	 * @param {number[]} frames - The array of frame values.
+	 * @returns {object} The object containing the `upper` and `lower` values.
+	 */
+	getMaxValue(frames) {
+		let upper = 0;
+		let lower = 0;
+
+		for (let i = 0; i < frames.length; i++) {
+			const frame = frames[i];
+			upper = Math.max(upper, frame);
+			lower = Math.min(lower, frame);
+		}
+
+		return { upper, lower };
+	}
+
+	/**
+	 * Gets the minimum value at a specific position in the frames.
+	 * @param {Array} frames - The array of frame data.
+	 * @param {number} pos - The position index in the frame data.
+	 * @returns {number} The minimum value at the specified position.
+	 */
+	getMinValuePos(frames, pos) {
+		let minVal = Infinity;
+
+		for (let i = 0; i < frames.length; i++) {
+			const frame = frames[i];
+			if (frame[pos] === null) frame[pos] = -Infinity;
+			const val = frame[pos];
+			if (isFinite(val)) {
+				minVal = Math.min(minVal, val);
+			}
+		}
+
+		return minVal === Infinity ? 0 : minVal;
+	}
+
+	/**
+	 * Gets the Normalized frame values by subtracting the maximum value from each frame.
+	 * @param {Array} frames - The array of frame data.
+	 * @param {number} maxVal - The maximum value to be subtracted from each frame.
+	 * @returns {Array} The normalized frame data.
+	 */
+	getNormalizedFrameValues(frames, maxVal) {
+		const normalizedFrames = new Array(frames.length);
+		const scaledIndex = this.metrics.count; // Scaled value stored at metric.count
+
+		for (let i = 0; i < frames.length; i++) {
+			const frame = frames[i];
+			const newFrame = frame.slice();
+
+			if (newFrame[scaledIndex] !== 1) newFrame[scaledIndex] -= maxVal;
+			if (!isFinite(newFrame[scaledIndex])) newFrame[scaledIndex] = 0;
+
+			normalizedFrames[i] = newFrame;
+		}
+
+		return normalizedFrames;
+	}
+
+	/**
+	 * Gets the scaled frames based on the given position, maximum value, and level type.
+	 * @param {Array} frames - The array of frame data.
+	 * @param {number} pos - The position index in the frame data to be scaled.
+	 * @param {number} max - The maximum value for scaling.
+	 * @param {boolean} isRmsLevel - Whether if RMS level scaling should be applied.
+	 * @returns {Array} The scaled frame data.
+	 */
+	getScaledFrames(frames, pos, max, isRmsLevel) {
+		const scaledFrames = new Array(frames.length);
+		const logMax = Math.log(Math.abs(max));
+
+		for (let i = 0; i < frames.length; i++) {
+			const frame = frames[i];
+			const value = isFinite(frame[pos]) ? frame[pos] : -Infinity;
+
+			let scaledVal =
+				!isFinite(value) ? 1 :
+				isRmsLevel ? 1 - Math.abs((value - max) / max) :
+				Math.abs(1 - (logMax + Math.log(Math.abs(value))) / logMax);
+
+			if (!isFinite(scaledVal)) scaledVal = 0;
+
+			const newFrame = frame.slice(0, this.metrics.count);
+			newFrame.push(scaledVal);
+			scaledFrames[i] = newFrame;
+		}
+
+		return scaledFrames;
+	}
+
+	/**
+	 * Gets the resized frames based on the given scale and new frame count.
+	 * @param {number} scale - The scale factor for resizing.
+	 * @param {number} frames - The current number of frames.
+	 * @param {number} newFrames - The desired number of frames after resizing.
+	 * @returns {Array} The resized frame data.
+	 */
+	getResizedFrames(scale, frames, newFrames) {
+		const data = Array(newFrames).fill(null).map(() => ({ maxAbs: 0, maxSigned: 0, val: 0, count: 0 }));
+		const scaleFactor = newFrames < frames ? frames / newFrames : newFrames / frames;
+		const isWaveform = this.preset.analysisMode === 'waveform';
+
+		if (frames === 0 || newFrames === 0) return [];
+
+		for (let i = 0, j = 0, h = 0; i < frames; i++) {
+			const frame = this.current[i];
+
+			if (newFrames < frames) {
+				if (isWaveform) { // Track max absolute and signed values for waveform
+					data[j].maxAbs = Math.max(data[j].maxAbs, Math.abs(frame));
+					data[j].maxSigned = Math.abs(frame) > Math.abs(data[j].maxSigned) ? frame : data[j].maxSigned;
+					data[j].count++;
+					h += 1;
+					if (h >= scaleFactor) {
+						j++;
+						h -= scaleFactor;
+						if (j >= newFrames) break;
+					}
+				}
+				else { // Averaging logic for other modes
+					while (h >= scaleFactor) {
+						const w = h - scaleFactor;
+						if (j + 1 < newFrames) {
+							data[j + 1].val += frame * w;
+							data[j + 1].count += w;
+						}
+						j += 2;
+						h = 0;
+						if (j >= newFrames) break;
+						data[j].val += frame * (1 - w);
+						data[j].count += (1 - w);
+					}
+					if (i % 2 === 0 && j + 1 < newFrames) {
+						data[j + 1].val += frame;
+						data[j + 1].count++;
+					} else {
+						data[j].val += frame;
+						data[j].count++;
+						h++;
+					}
+				}
+			}
+			else { // Upsampling: repeat or interpolate frames
+				while (h < scaleFactor && j < newFrames) {
+					if (isWaveform) {
+						data[j].maxAbs = Math.max(data[j].maxAbs, Math.abs(frame));
+						data[j].maxSigned = Math.abs(frame) > Math.abs(data[j].maxSigned) ? frame : data[j].maxSigned;
+					} else {
+						data[j].val += frame;
+					}
+					data[j].count++;
+					j++;
+					h++;
+				}
+				h -= scaleFactor;
+			}
+		}
+
+		return data.filter(el => el.count > 0).map(el => isWaveform ? el.maxSigned : el.val / el.count);
+	}
+
+	/**
+	 * Normalizes points to ensure all points are on the same scale to prevent distortion of the waveform.
+	 * @param {boolean} normalizeWidth - If `true`, adjusts the number of frames to match the window size.
+	 */
+	normalizePoints(normalizeWidth = false) {
+		if (!this.current.length) return;
+
+		// Safety filter for any unexpected invalid frames
+		if (this.analysis.binaryMode === 'audioWizard' && !this.isFallback && !this.fallbackMode.paint) {
+			this.current = this.current.filter(frame => frame != null && Array.isArray(frame) && frame.length >= this.metrics.count);
+		}
+
+		if (this.analysis.binaryMode === 'audioWizard' && !this.isFallback && !this.fallbackMode.paint && this.preset.analysisMode === 'waveform') {
+			const channels = this.currentChannels || 1;
+			const minIdx = this.metrics.index.min;
+			const maxIdx = this.metrics.index.max;
+			const metricsPerChannel = this.metrics.count;
+
+			this.current = this.current.map(frame => {
+				let globalMin = Infinity;
+				let globalMax = -Infinity;
+
+				// Process ALL channels
+				for (let ch = 0; ch < channels; ch++) {
+					const offset = ch * metricsPerChannel;
+					const chMin = frame[offset + minIdx];
+					const chMax = frame[offset + maxIdx];
+
+					globalMin = Math.min(globalMin, chMin);
+					globalMax = Math.max(globalMax, chMax);
+				}
+
+				// Return the value with larger magnitude
+				return Math.abs(globalMax) > Math.abs(globalMin) ? globalMax : globalMin;
+			});
+		}
+
+		let { upper, lower } = this.getMaxValue(this.current);
+
+		if (this.analysis.binaryMode === 'audioWizard' && !this.isFallback && !this.fallbackMode.paint && this.preset.analysisMode !== 'waveform') {
+			const metric = this.metrics.mode[this.preset.analysisMode];
+			const pos = this.metrics.index[metric];
+			const minVal = this.getMinValuePos(this.current, pos);
+
+			this.current = this.getScaledFrames(this.current, pos, minVal, this.preset.analysisMode === 'rms');
+			this.current = this.getNormalizedFrameValues(this.current, Math.min(...this.current.map(frame => frame[this.metrics.count])));
+			this.current = this.current.map((x, i) => Math.sign((0.5 - i % 2)) * (1 - x[this.metrics.count]));
+		}
+		else if (this.analysis.binaryMode === 'visualizer' || this.isFallback || this.fallbackMode.paint) {
+			const maxVal = Math.max(Math.abs(upper), Math.abs(lower));
+			this.current = this.current.map(frame => frame / maxVal);
+		}
+
+		if (normalizeWidth) {
+			const barW = this.getBarWidth();
+			const frames = this.current.length;
+			const newFrames = Math.floor(this.w / barW);
+
+			if (newFrames === frames) return;
+
+			this.current = this.getResizedFrames(frames / newFrames, frames, newFrames);
+
+			const bias = Math.abs(upper / lower);
+			upper = lower = 0;
+			({ upper, lower } = this.getMaxValue(this.current));
+			const newBias = Math.abs(upper / lower);
+			const biasDiff = bias - newBias;
+
+			if (biasDiff > 0.1) {
+				const distort = bias / newBias;
+				const sign = Math.sign(biasDiff);
+				this.current = this.current.map(frame => (sign === 1 && frame > 0) || (sign !== 1 && frame < 0) ? frame * distort : frame);
+			}
+		}
+
+		// Clamp frame values to [-1, 1] to prevent overflow/distortion from imbalanced data or edge cases
+		this.current = this.current.map(frame => Math.max(-1, Math.min(1, frame)));
+	}
+
+	/**
+	 * Resets the state of the waveform bar.
+	 */
+	reset() {
+		this.current = [];
+		this.cache = null;
+		this.time = 0;
+		this.step = 0;
+		this.maxStep = 6;
+		this.offset = [];
+		this.isAllowedFile = true;
+		this.isError = false;
+		this.isFallback = false;
+		this.fallbackMode.paint = this.fallbackMode.analysis = false;
+		this.resetAnimation();
+		clearTimeout(this.queueId);
+	}
+
+	/**
+	 * Resets the state of the waveform bar animation.
+	 */
+	resetAnimation() {
+		this.step = 0;
+		this.offset = [];
+		this.defaultSteps();
+	}
+
+	/**
+	 * Sets the refresh rate for the waveform bar.
+	 */
+	setRefreshRate() {
+		if (grm.ui.isStreaming) { // Radio streaming refresh rate
+			this.ui.refreshRate = grm.ui.seekbarTimerInterval = FPS._1;
+		}
+		else if (grSet.waveformBarRefreshRate !== 'variable') { // Fixed refresh rate
+			this.ui.refreshRate = grm.ui.seekbarTimerInterval = grSet.waveformBarRefreshRate;
+		}
+		else { // Variable refresh rate calculation
+			const now = Date.now();
+			if (this.updateTimeLast && (now - this.updateTimeLast) < 250) return; // Check every 250 ms
+			this.updateTimeLast = now;
+
+			if (this.profilerPaintTimeLast === undefined) {
+				this.profilerPaintTimeLast = grm.ui.seekbarProfiler.Time;
+			}
+
+			const timeDifference = grm.ui.seekbarProfiler.Time - this.profilerPaintTimeLast;
+			this.ui.refreshRate = grm.ui.seekbarTimerInterval = Clamp(grm.ui.seekbarTimerInterval + (timeDifference > 0 ? 12 : -7), FPS._10, FPS._5);
+			this.profilerPaintTimeLast = grm.ui.seekbarProfiler.Time;
+
+			grm.ui.clearTimer('seekbar', true);
+			grm.ui.seekbarTimer = !fb.IsPaused ? setInterval(() => grm.ui.refreshSeekbar(), grm.ui.seekbarTimerInterval) : null;
+		}
+	}
+
+	/**
+	 * Sets the rectangular area to be painted.
+	 * @param {number} time - The current playback time.
+	 * @returns {{ x: number, y: number, width: number, height: number }} The object containing the dimensions of the rectangle to be painted.
+	 */
+	setPaintRect(time) {
+		const widerModesScale = ['bars', 'halfbars'].includes(this.preset.barDesign) ? 2 : 1;
+		const barW = Math.ceil(Math.max(this.w / this.current.length, SCALE(2))) * widerModesScale;
+		const currX = this.x + (this.w * time / fb.PlaybackLength);
+
+		const prePaintW = Math.min(
+			this.prepaint && this.preset.prepaintFront !== Infinity || this.preset.animate
+				? this.preset.prepaintFront === Infinity && this.preset.animate
+					? Infinity
+					: (this.preset.prepaintFront / this.timeConstant * barW) + barW
+				: 2.5 * barW,
+			this.w - currX + barW
+		);
+
+		return {
+			x: currX - barW - grm.ui.edgeMargin,
+			y: this.y,
+			width: prePaintW + grm.ui.edgeMarginBoth,
+			height: this.h
+		};
+	}
+
+	/**
+	 * Sets the throttle paint methods based on the current UI refresh rate.
+	 */
+	setThrottlePaint() {
+		/**
+		 * Throttles the window repaint to improve performance by limiting the rate of repaint operations.
+		 * This function is specifically tailored to repaint a defined rectangular area of the window.
+		 * The repaint is controlled by the UI refresh rate.
+		 * @param {boolean} [force] - If set to true, the repaint will be forced even if the window is not dirty.
+		 * @private
+		 */
+		this.throttlePaint = Throttle((force = false) =>
+			window.RepaintRect(this.x - SCALE(2), this.y - this.h * 0.5 - SCALE(4), this.w + SCALE(4), this.h + SCALE(8), force), this.ui.refreshRate);
+
+		/**
+		 * Throttles the window repaint to improve performance by limiting the rate of repaint operations.
+		 * This function allows for the specification of the rectangular area to be repainted.
+		 * The repaint is controlled by the UI refresh rate.
+		 * @param {number} x - The x-coordinate of the upper-left corner of the rectangle to repaint.
+		 * @param {number} y - The y-coordinate of the upper-left corner of the rectangle to repaint.
+		 * @param {number} w - The width of the rectangle to repaint.
+		 * @param {number} h - The height of the rectangle to repaint.
+		 * @param {boolean} [force] - If set to true, the repaint will be forced even if the window is not dirty.
+		 * @private
+		 */
+		this.throttlePaintRect = Throttle((x, y, w, h, force = false) =>
+			window.RepaintRect(x - SCALE(2), y - h * 0.5 - SCALE(4), w + SCALE(4), h + SCALE(8), force), this.ui.refreshRate);
+	}
+
+	/**
+	 * Sets the vertical waveform bar position.
+	 * @param {number} y - The y-coordinate.
+	 */
+	setY(y) {
+		this.y = y + SCALE(10);
+	}
+
+	/**
+	 * This method is currently not used.
+	 * @param {boolean} [enable] - If true, activates the component; if false, deactivates it.
+	 */
+	switch(enable = !this.active) {
+		if (!fb.IsPlaying) return;
+
+		const wasActive = this.active;
+		this.active = enable;
+
+		if (!wasActive && this.active) {
+			window.Repaint();
+			setTimeout(() => {
+				this.on_playback_new_track(fb.GetNowPlaying());
+				this.on_playback_time(fb.PlaybackTime);
+			}, 0);
+		}
+		else if (wasActive && !this.active) {
+			this.on_playback_stop(-1);
+		}
+	}
+
+	/**
+	 * Checks if the mouse is within the boundaries of the waveform bar.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 * @returns {boolean} True or false.
+	 */
+	trace(x, y) {
+		return (x >= this.x && y >= this.y && x <= this.x + this.w && y <= this.y + this.h);
+	}
+
+	/**
+	 * Updates the waveform bar with the current track information, playback time and size.
+	 * @param {boolean} current - Whether the current track has changed or not.
+	 */
+	updateBar(current) {
+		if (!current) this.on_playback_new_track(fb.GetNowPlaying());
+		this.on_playback_time(fb.PlaybackTime);
+		this.on_size(grm.ui.ww, grm.ui.wh);
+	}
+	// #endregion
+
+	// * CALLBACKS * //
+	// #region CALLBACKS
+	/**
+	 * Handles left mouse button up click events and disables dragging and updates the playback time.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 * @param {number} mask - The mouse mask.
+	 * @returns {boolean} True or false.
+	 */
+	on_mouse_lbtn_up(x, y, mask) {
+		if (['progressbar', 'peakmeterbar'].includes(grSet.seekbar) ||
+			!this.active || !this.trace(x, y) || !fb.IsPlaying || this.current.length === 0) {
+			this.mouseDown = false;
+			return false;
+		}
+
+		this.mouseDown = false;
+
+		if (!fb.GetSelection()) return;
+
+		const barW = this.w / this.current.length;
+		const time = Math.round(fb.PlaybackLength / this.current.length * (x - this.x) / barW);
+		fb.PlaybackTime = Clamp(time, 0, fb.PlaybackLength);
+		this.throttlePaint(true);
+
+		return true;
+	}
+
+	/**
+	 * Handles mouse movement events on the waveform bar.
+	 * @param {number} x - The x-coordinate.
+	 * @param {number} y - The y-coordinate.
+	 * @param {number} mask - The mouse mask.
+	 */
+	on_mouse_move(x, y, mask) {
+		if (['progressbar', 'peakmeterbar'].includes(grSet.seekbar)) {
+			return;
+		}
+
+		this.mouseDown = (mask === MouseKey.LButton && this.on_mouse_lbtn_up(x, y, mask));
+	}
+
+	/**
+	 * Handles the mouse wheel event to seek through the playback.
+	 * @param {number} step - The wheel scroll direction.
+	 * @returns {boolean} True or false.
+	 */
+	on_mouse_wheel(step) {
+		if (!this.active || !fb.GetSelection() || !fb.IsPlaying || this.current.length === 0) {
+			return false;
+		}
+
+		const seekType = {
+			seconds:    (scroll) => scroll * this.wheel.seekSpeed,
+			percentage: (scroll) => (scroll * this.wheel.seekSpeed) / 100 * fb.PlaybackLength
+		};
+
+		const seekTypeFunc = seekType[this.wheel.seekType] || seekType.seconds;
+		const newTime = fb.PlaybackTime + seekTypeFunc(step);
+		fb.PlaybackTime = Clamp(newTime, 0, fb.PlaybackLength);
+		this.throttlePaint(true);
+
+		return true;
+	}
+
+	/**
+	 * Resets the current waveform and processes new data for the new current playing track.
+	 * @param {FbMetadbHandle} handle - The handle of the new track.
+	 * @param {boolean} [isRetry] - The flag indicating whether the method call is a retry attempt.
+	 * @returns {Promise<void>} The promise that resolves when the processing has finished.
+	 */
+	async on_playback_new_track(handle = fb.GetNowPlaying(), isRetry = false) {
+		const epoch = this.waveformEpoch = (this.waveformEpoch || 0) + 1;
+		if (['progressbar', 'peakmeterbar'].includes(grSet.seekbar) || !this.active || !handle) {
+			this.waveformNextTrack = null;
+			return;
+		}
+		if (this.waveformClosed) return;
+		// Exactly one native analysis and one latest waiting track. A completed
+		// old analysis may not replace the new track's bar or mark it as failed.
+		this.waveformNextTrack = { handle, isRetry, epoch };
+		this.current = []; this.cache = [];
+		if (!this.waveformJob) this.waveformJob = Promise.resolve().then(() => this.drainWaveformTracks());
+		await this.waveformJob;
+	}
+
+	async drainWaveformTracks() {
+		try {
+			while (this.waveformNextTrack && !this.waveformClosed) {
+				const { handle, isRetry, epoch } = this.waveformNextTrack;
+				this.waveformNextTrack = null;
+				if (epoch !== this.waveformEpoch || grSet.seekbar !== 'waveformbar' || !this.active) continue;
+				this.reset(); this.checkAllowedFile(handle);
+				await this.analyzeDataStart(handle, isRetry, epoch);
+				if (epoch !== this.waveformEpoch || this.waveformClosed) continue;
+				this.resetAnimation();
+				if (this.preset.animate && this.preset.useBPM) this.bpmSteps(handle);
+				if (fb.IsPlaying) this.time = fb.PlaybackTime;
+				this.throttlePaint();
+			}
+		} catch (e) { console.log(`波形 FIX14 => ${e.message || e}`); }
+		finally {
+			this.waveformJob = null;
+			if (this.waveformNextTrack && !this.waveformClosed)
+				this.waveformJob = Promise.resolve().then(() => this.drainWaveformTracks());
+		}
+	}
+
+	/**
+	 * Schedules the `on_playback_new_track` event to be triggered after a specified delay.
+	 * This is useful for debouncing the event, ensuring it is fired only once after a series of track changes.
+	 */
+	on_playback_new_track_queue() {
+		clearTimeout(this.queueId);
+
+		this.queueId = setTimeout(() => {
+			this.on_playback_new_track(...arguments);
+		}, this.queueMs);
+	}
+
+	/**
+	 * Resets the waveform bar on playback stop.
+	 * @param {number} reason - The type of playback stop.
+	 */
+	on_playback_stop(reason = -1) {
+		this.waveformEpoch = (this.waveformEpoch || 0) + 1;
+		this.waveformNextTrack = null;
+		clearTimeout(this.queueId);
+		if (['progressbar', 'peakmeterbar'].includes(grSet.seekbar) || reason !== -1 && !this.active) {
+			return;
+		}
+
+		this.reset();
+		if (reason !== 2) this.throttlePaint();
+	}
+
+	/**
+	 * Updates the waveform bar with throttled repaints.
+	 * @param {number} time - The current playback time.
+	 */
+	on_playback_time(time) {
+		if (['progressbar', 'peakmeterbar'].includes(grSet.seekbar) || !this.active) {
+			return;
+		}
+
+		this.time = time;
+
+		if ((this.preset.paintMode === 'full' || this.preset.indicator || this.analysis.binaryMode === 'visualizer') &&
+			this.cache === this.current) {
+			return;
+		}
+
+		this.cache = this.current;
+
+		if (this.analysis.binaryMode === 'visualizer' || !this.current.length) {
+			this.throttlePaint();
+		}
+		else if (this.preset.paintMode === 'partial' || this.preset.indicator) {
+			const paintRect = this.setPaintRect(this.time);
+			this.throttlePaintRect(paintRect.x, paintRect.y, paintRect.width, paintRect.height);
+		}
+	}
+
+	/**
+	 * Handles the waveform bar state when reloading the theme.
+	 */
+	on_script_unload() {
+		this.waveformClosed = true;
+		this.waveformEpoch = (this.waveformEpoch || 0) + 1;
+		this.waveformNextTrack = null;
+		clearTimeout(this.queueId);
+		if (AudioWizard && this.analysisInProgress) { try { AudioWizard.StopWaveformAnalysis(); } catch (e) {} }
+		if (['progressbar', 'peakmeterbar'].includes(grSet.seekbar)) return;
+		if (this.analysis.autoDelete) this.removeData();
+	}
+
+	/**
+	 * Sets the size and position of the waveform bar and updates them on window resizing.
+	 * @param {number} w - The width of the waveform bar.
+	 * @param {number} h - The height of the waveform bar.
+	 */
+	on_size(w, h) {
+		if (['progressbar', 'peakmeterbar'].includes(grSet.seekbar)) return;
+		this.x = grm.ui.edgeMargin;
+		this.y = 0;
+		this.w = w - grm.ui.edgeMarginBoth;
+		this.h = grm.ui.seekbarHeight;
+	}
+	// #endregion
+}
