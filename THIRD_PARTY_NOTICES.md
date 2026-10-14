@@ -1,6 +1,7 @@
 # 来源、署名与许可证说明
 
 **简体中文** | [English](THIRD_PARTY_NOTICES.en.md)
+
 ## TT / Georgia-ReBORN
 
 主脚本头部标注作者 TT，来源为 <https://github.com/TT-ReBORN/Georgia-ReBORN>，保留原文件头和作者信息。本仓库包含基于原有脚本的修改，不能将全部代码标为修改者原创。

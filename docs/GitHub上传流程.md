@@ -1,6 +1,7 @@
 # GitHub 上传流程
 
 **简体中文** | [English](en/GITHUB_WORKFLOW.md)
+
 ## 首次上传
 
 1. 本地仓库为 `ReBORN-CHS-Mod`，当前路径为 `D:\JS\ReBORN-CHS-Mod`。保留脚本内部名称和资源路径。
