@@ -4,7 +4,7 @@
 
 A script modification project based on the Chinese-localized TT / Georgia-ReBORN setup for foobar2000, preserving personal enhancements, fixes, and development notes.
 
-Current baseline: **FIX51**. Only the latest edition with the full feature set is maintained; the simplified community edition is not maintained here.
+Current version: **FIX53**; stable baseline: **FIX51**. Only the latest edition with the full feature set is maintained; the simplified community edition is not maintained here.
 
 ## Purpose
 
@@ -32,7 +32,7 @@ Keep script changes available for comparison, rollback, and continued developmen
 | `docs/en/INSTALLATION.md` | Replacement, backup, settings, and recovery |
 | `docs/en/DEVELOPMENT.md` | Design decisions and outstanding information |
 | `docs/en/GITHUB_WORKFLOW.md` | Initial upload and ongoing maintenance |
-| `docs/en/FILE_LIST.md` | Script inventory and FIX51 checksums |
+| `docs/en/FILE_LIST.md` | Script inventory and current-version checksums |
 | `THIRD_PARTY_NOTICES.en.md` | Sources, attribution, and license information |
 
 ## Requirements

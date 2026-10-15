@@ -2635,6 +2635,24 @@ class Details {
 
 	// * PLUBLIC METHODS - METRICS * //
 	// #region PUBLIC METHODS - METRICS
+	/** Resolve wheel steps to explicit sizes so the host's old 24 px clamp is bypassed. */
+	setMetadataFontSize(role, size) {
+		const roles = {
+			artist: ['gridArtistFontSize_layout', 'setGridArtistFontSize', 18, 20],
+			title: ['gridTitleFontSize_layout', 'setGridTitleFontSize', 18, 20],
+			album: ['gridAlbumFontSize_layout', 'setGridAlbumFontSize', 18, 20],
+			key: ['gridKeyFontSize_layout', 'setGridTagKeyFontSize', 17, 19],
+			value: ['gridValueFontSize_layout', 'setGridTagValueFontSize', 17, 19]
+		};
+		const config = roles[role];
+		if (!config || !Number.isFinite(Number(size))) return;
+		const [setting, setter, hdDefault, hiDefault] = config;
+		size = Number(size);
+		const requested = size === 0 ? HD_QHD_4K(hdDefault, hiDefault) :
+			Math.abs(size) === 1 ? Number(grSet[setting]) + size : Number(size);
+		grm.display[setter](Clamp(Math.round(requested), 10, 48));
+	}
+
 	/**
 	 * Updates the Details-only responsive scale and derived fonts.
 	 * The configured font sizes remain the immutable 1.00 baseline; no setting is written back.
@@ -2643,7 +2661,10 @@ class Details {
 		const bounds = this.getDetailsPanelBounds();
 		const geometryKey = [bounds.y, bounds.w, bounds.h, grm.ui.edgeMargin,
 			!!this.bandLogo, grStr.artist, grStr.album, grStr.title,
-			JSON.stringify(grStr.grid)].join('|');
+			JSON.stringify(grStr.grid), grSet.gridArtistFontSize_layout, grSet.gridTrackNumFontSize_layout,
+			grSet.gridTitleFontSize_layout, grSet.gridAlbumFontSize_layout, grSet.gridKeyFontSize_layout,
+			grSet.gridValueFontSize_layout, grSet.showGridArtist_layout, grSet.showGridTitle_layout,
+			grSet.showGridTimeline_layout].join('|');
 		if (geometryKey !== this.detailsGeometryKey) {
 			this.detailsGeometryKey = geometryKey;
 			this.detailsFitScale = 1;
@@ -2661,10 +2682,8 @@ class Details {
 		const baseHeroScale = Math.max(1, Math.min(1.30, rawScale));
 		const baseInfoScale = Math.max(1, Math.min(1.22, 1 + (baseHeroScale - 1) * 0.80));
 		const baseLogoScale = Math.max(1, Math.min(1.24, 1 + (baseHeroScale - 1) * 0.90));
-		const arcFit = grm.ui.displayLyrics && grSet.detailsLyricsDisplayMode === 'arc' && !this.isTurntableActive() && !this.immersiveMode
-			? Math.max(0.68, Math.min(1, grm.ui.albumArtSize.h / SCALE(820))) : 1;
-		const heroScale = Math.round(Math.min(1.57, (baseHeroScale + highResBoost) * arcFit * this.detailsFitScale) * 100) / 100;
-		const infoScale = Math.round(Math.min(1.36, (baseInfoScale + highResBoost * 0.48) * arcFit * this.detailsFitScale) * 100) / 100;
+		const heroScale = Math.round(Math.min(1.57, (baseHeroScale + highResBoost) * this.detailsFitScale) * 100) / 100;
+		const infoScale = Math.round(Math.min(1.36, (baseInfoScale + highResBoost * 0.48) * this.detailsFitScale) * 100) / 100;
 		const logoScale = Math.round(Math.min(1.38, baseLogoScale + highResBoost * 0.52) * 100) / 100;
 
 		const artistTitle = grSet.showGridArtist_default && grSet.showGridTitle_default || grSet.showGridArtist_artwork && grSet.showGridTitle_artwork;
@@ -4433,7 +4452,22 @@ class Details {
 
 		this.clearDiscArtTransitionShadow();
 		const startTime = grAnimationManager.now();
+		// FIX61: Diagnose only significant frame gaps, with a strict log throttle.
+		// This changes neither interpolation nor the animation scheduler interval.
+		let previousTickAt = startTime;
+		let lastWarningAt = 0;
+		let longFrameCount = 0;
 		this.discArtSlideTimer = grAnimationManager.add(now => {
+			const frameGap = now - previousTickAt;
+			previousTickAt = now;
+			const expectedGap = Math.max(16, grSet.spinDiscArtRedrawInterval);
+			if (frameGap > Math.max(65, expectedGap * 2.5)) {
+				longFrameCount++;
+				if (now - lastWarningAt >= 5000) {
+					console.log(`FIX61 出碟帧间隔异常：${Math.round(frameGap)}ms（设定 ${expectedGap}ms，当前动画累计 ${longFrameCount} 次）`);
+					lastWarningAt = now;
+				}
+			}
 			const progress = Math.min(1, (now - startTime) / Math.max(1, duration));
 			const eased = easing === 'progressive' ?
 				progress * progress * (3 - 2 * progress) :
@@ -4463,8 +4497,10 @@ class Details {
 		const cover = grm.ui.albumArtSize;
 		const margin = this.discArtShadow + SCALE(2);
 		const left = Math.max(0, Math.floor(Math.min(cover.x, previousX, currentX) - margin));
-		const right = grm.ui.displayDetails && grm.ui.displayLyrics && grSet.detailsLyricsDisplayMode === 'arc'
-			? grm.ui.ww : Math.min(grm.ui.ww, Math.ceil(Math.max(
+		// FIX61: The arc-lyrics renderer owns its own repaint requests. Sliding the
+		// disc should invalidate only the old/new disc and cover bounds, not the
+		// entire arc-lyrics rail on every animation tick.
+		const right = Math.min(grm.ui.ww, Math.ceil(Math.max(
 			cover.x + cover.w,
 			previousX + this.discArtSize.w,
 			currentX + this.discArtSize.w
@@ -4737,6 +4773,13 @@ class Details {
 			if (grAnimationManager.resizing || window.IsVisible === false || !fb.IsPlaying || fb.IsPaused) return;
 			if (precomputeToken !== this.discArtLoadToken || !this.discArt || this.discArt.Path !== currentAlbumId || !grm.ui.displayDetails ||
 				layoutWidth !== Math.round(this.discArtSize.w) || layoutHeight !== Math.round(this.discArtSize.h) || imageCount !== grSet.spinDiscArtImageCount) return;
+
+			// FIX57: Native RotateImage() can block a slide frame. Keep the job alive,
+			// but yield to disc entry/eject animation; it will resume when settled.
+			if (this.isDiscArtTransitionActive() || this.discArtExitActive) {
+				this.discArtPrecomputeTimer = setTimeout(precomputeBatch, 120);
+				return;
+			}
 
 			const tier = performanceTiers[performanceTierCurrent];
 			let computedInBatch = 0;

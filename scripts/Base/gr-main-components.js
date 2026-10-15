@@ -1,4 +1,4 @@
-﻿////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // * Georgia-ReBORN: 一个简洁、全动态的颜色重生 - Foobar2000 播放器 * //
 // * 类型:           Georgia-ReBORN 主要组件                        * //
 // * 作者:           TT                                             * //
@@ -3179,7 +3179,7 @@ class WaveformBar {
 		/** @private @type {number} The queue identifier for the waveform bar. */
 		this.queueId = null;
 		/** @private @type {number} The queue interval in milliseconds. */
-		this.queueMs = 1000;
+		this.queueMs = 150;
 		/** @private @type {string[]} The current waveform data. */
 		this.current = [];
 		/** @private @type {number[]} The offset values for the waveform data. */
@@ -3754,6 +3754,108 @@ class WaveformBar {
 
 	// * PUBLIC METHODS - DATA * //
 	// #region PUBLIC METHODS - DATA
+	/** Cache identity includes cue subsong and analysis resolution. */
+	waveformCacheKey(handle) {
+		return `${handle.RawPath || handle.Path}|${handle.SubSong || 0}|${handle.Length}|${this.analysis.resolution}|${this.metrics.count}|${this.cacheDir}`;
+	}
+
+	/** Small raw-data LRU, independent of display size and analysis style. */
+	rememberWaveformData(handle, data, channels) {
+		const values = data.length * this.metrics.count * channels;
+		if (!data.length || values > 250000 || !this.validData(data, channels)) return;
+		if (!this.waveformMemory) this.waveformMemory = new Map();
+		const key = this.waveformCacheKey(handle);
+		this.waveformMemory.delete(key);
+		this.waveformMemory.set(key, { data, channels, values });
+		let total = [...this.waveformMemory.values()].reduce((n, item) => n + item.values, 0);
+		while (this.waveformMemory.size > 6 || total > 250000) {
+			const oldest = this.waveformMemory.keys().next().value;
+			total -= this.waveformMemory.get(oldest).values;
+			this.waveformMemory.delete(oldest);
+		}
+	}
+
+	/** Read caches before waiting for any native job; isolate damaged formats. */
+	loadWaveformCache(handle) {
+		if (this.analysis.binaryMode !== 'audioWizard') return false;
+		const key = this.waveformCacheKey(handle);
+		const memory = this.waveformMemory && this.waveformMemory.get(key);
+		if (memory) {
+			this.waveformMemory.delete(key); this.waveformMemory.set(key, memory);
+			this.current = memory.data; this.currentChannels = memory.channels;
+			this.isError = this.isFallback = false;
+			return true;
+		}
+		const { waveformBarFile } = this.getPaths(handle);
+		for (const file of this.getFileConfigs()) {
+			const path = `${waveformBarFile}${file.ext}`;
+			if (!IsFile(path)) continue;
+			try {
+				const parsed = file.decompress(Open(path, file.codePage) || '');
+				const data = parsed && Array.isArray(parsed.data) ? parsed.data : parsed;
+				const channels = parsed && Array.isArray(parsed.data) ? parsed.channels || 1 : 1;
+				if (!this.validData(data, channels)) throw new Error('Invalid waveform cache');
+				this.current = data; this.currentChannels = channels;
+				this.isError = this.isFallback = false;
+				this.rememberWaveformData(handle, data, channels);
+				return true;
+			} catch (e) {
+				console.log(`波形缓存无效，重新解析: ${path}`);
+				try { DeleteFile(path); } catch (ignored) {}
+			}
+		}
+		return false;
+	}
+
+	/** Stop only an analysis owned by this bar, and release a missing callback. */
+	cancelWaveformAnalysis() {
+		const request = this.waveformRequest;
+		if (!request) return;
+		request.finish(false);
+		try { if (AudioWizard) AudioWizard.StopWaveformAnalysis(); } catch (e) {}
+	}
+
+	async waitForWaveformAnalyzer(epoch) {
+		const deadline = Date.now() + this.analysis.timeout;
+		while (AudioWizard.FullTrackProcessing) {
+			if (epoch !== this.waveformEpoch || this.waveformClosed) return false;
+			if (Date.now() >= deadline) { console.log('音频向导仍在忙，波形解析等待超时。'); return false; }
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+		return epoch === this.waveformEpoch && !this.waveformClosed;
+	}
+
+	requestWaveformAnalysis(handleList, epoch) {
+		return new Promise(resolve => {
+			let settled = false, timer = null;
+			const request = { finish: result => {
+				if (settled) return;
+				settled = true; clearTimeout(timer);
+				if (this.waveformRequest === request) this.waveformRequest = null;
+				resolve(result);
+			} };
+			this.waveformRequest = request;
+			timer = setTimeout(() => {
+				console.log('音频向导波形解析超时。');
+				this.cancelWaveformAnalysis();
+			}, this.analysis.timeout);
+			try {
+				const { metadata } = AWGetMetadata(handleList);
+				AudioWizard.SetFullTrackWaveformCallback(result => request.finish(result));
+				if (epoch !== this.waveformEpoch || this.waveformClosed) { request.finish(false); return; }
+				const accepted = AudioWizard.StartWaveformAnalysis(metadata, this.analysis.resolution);
+				if (accepted === false) request.finish(false);
+			} catch (e) { request.finish(false); console.log(`音频向导启动失败: ${e.message || e}`); }
+		});
+	}
+
+	finishWaveformTrack(handle) {
+		this.resetAnimation();
+		if (this.preset.animate && this.preset.useBPM) this.bpmSteps(handle);
+		if (fb.IsPlaying) this.time = fb.PlaybackTime;
+		this.throttlePaint(true);
+	}
+
 	/**
 	 * Starts the analysis process of the waveform data and updates the current state.
 	 * @param {FbMetadbHandle} handle - The handle of the current track.
@@ -3771,29 +3873,7 @@ class WaveformBar {
 		}
 
 		const { waveformBarFolder, waveformBarFile, sourceFile } = this.getPaths(handle);
-		const files = this.getFileConfigs();
-		let analysisComplete = false;
-
-		for (const file of files) {
-			const fileWithExt = `${waveformBarFile}${file.ext}`;
-			if (IsFile(fileWithExt)) {
-				const str = Open(fileWithExt, file.codePage) || '';
-				const parsed = file.decompress(str) || {};
-
-				if (parsed.data && Array.isArray(parsed.data)) {
-					this.current = parsed.data;
-					this.currentChannels = parsed.channels || 1;
-				} else {
-					this.current = Array.isArray(parsed) ? parsed : [];
-					this.currentChannels = 1;
-				}
-
-				if (this.verifyData(handle, fileWithExt, isRetry)) {
-					analysisComplete = true;
-					break;
-				}
-			}
-		}
+		let analysisComplete = this.loadWaveformCache(handle);
 
 		if (!analysisComplete && this.analysis.autoAnalysis && IsFile(sourceFile)) {
 			if (this.analysis.visualizerFallbackAnalysis && this.isAllowedFile) {
@@ -3814,6 +3894,7 @@ class WaveformBar {
 			analysisComplete = this.verifyData(handle, undefined, isRetry);
 		}
 
+		if (epoch !== this.waveformEpoch || this.waveformClosed) return;
 		this.isFallback = !analysisComplete;
 		this.normalizePoints(this.analysis.binaryMode !== 'visualizer' && this.ui.sizeNormalizeWidth);
 	}
@@ -3827,7 +3908,9 @@ class WaveformBar {
 	 * @returns {Promise<void>} The promise that resolves when the analysis has finished.
 	 */
 	async analyzeData(handle, waveformBarFolder, waveformBarFile, sourceFile = handle.Path || handle[0].Path, epoch = this.waveformEpoch) {
-		if (!this.isAllowedFile || !AudioWizard || AudioWizard.FullTrackProcessing) return;
+		if (!this.isAllowedFile || !AudioWizard) return;
+		if (!await this.waitForWaveformAnalyzer(epoch)) return;
+		if (epoch !== this.waveformEpoch || this.waveformClosed) return;
 
 		if (!IsFolder(waveformBarFolder)) {
 			CreateFolder(waveformBarFolder);
@@ -3841,11 +3924,7 @@ class WaveformBar {
 
 			grm.debug.debugLog(`音频向导 => 开始波形分析: mode=${this.preset.analysisMode}, resolution=${this.analysis.resolution}`);
 
-			const success = await new Promise((resolve) => {
-				const { metadata } = AWGetMetadata(handleList);
-				AudioWizard.SetFullTrackWaveformCallback((res) => resolve(res));
-				AudioWizard.StartWaveformAnalysis(metadata, this.analysis.resolution);
-			});
+			const success = await this.requestWaveformAnalysis(handleList, epoch);
 			if (epoch !== this.waveformEpoch || this.waveformClosed) return;
 
 			if (!success) {
@@ -3894,6 +3973,7 @@ class WaveformBar {
 				if (handleList.Count === 1) {
 					this.current = data;
 					this.currentChannels = channels;
+					this.rememberWaveformData(trackHandle, data, channels);
 				}
 			}
 
@@ -3906,7 +3986,7 @@ class WaveformBar {
 		}
 		finally {
 			this.analysisInProgress = false;
-			this.throttlePaint();
+			if (!this.waveformClosed) this.throttlePaint();
 		}
 	}
 
@@ -3967,15 +4047,16 @@ class WaveformBar {
 	 * Checks if the processed waveform data is valid for audioWizard mode.
 	 * @returns {boolean} True if the data is valid.
 	 */
-	validData() {
-		if (!Array.isArray(this.current) || !this.current.length) {
+	validData(data = this.current, channelCount = this.currentChannels) {
+		if (!Array.isArray(data) || !data.length) {
 			return false;
 		}
 
-		const channels = this.currentChannels || 1;
+		const channels = channelCount || 1;
+		if (!Number.isInteger(channels) || channels < 1) return false;
 		const expectedLength = this.metrics.count * channels;
 
-		return this.current.every(frame => {
+		return data.every(frame => {
 			if (!Array.isArray(frame) || frame.length < expectedLength) {
 				return false;
 			}
@@ -4038,6 +4119,7 @@ class WaveformBar {
 	 */
 	deleteWaveformFile(handle) {
 		if (!handle) return;
+		if (this.waveformMemory) this.waveformMemory.delete(this.waveformCacheKey(handle));
 
 		const { waveformBarFile } = this.getPaths(handle);
 		const fileConfigs = this.getFileConfigs();
@@ -4058,6 +4140,7 @@ class WaveformBar {
 	 * Deletes the waveform bar cache directory with its processed data.
 	 */
 	removeData() {
+		if (this.waveformMemory) this.waveformMemory.clear();
 		DeleteFolder(this.cacheDir);
 	}
 
@@ -4648,51 +4731,56 @@ class WaveformBar {
 	 */
 	async on_playback_new_track(handle = fb.GetNowPlaying(), isRetry = false) {
 		const epoch = this.waveformEpoch = (this.waveformEpoch || 0) + 1;
-		if (['progressbar', 'peakmeterbar'].includes(grSet.seekbar) || !this.active || !handle) {
-			this.waveformNextTrack = null;
-			return;
-		}
-		if (this.waveformClosed) return;
-		// Exactly one native analysis and one latest waiting track. A completed
-		// old analysis may not replace the new track's bar or mark it as failed.
+		clearTimeout(this.queueId); this.queueId = null;
+		this.waveformNextTrack = null;
+		this.cancelWaveformAnalysis();
+		if (grSet.seekbar !== 'waveformbar' || !this.active || !handle || this.waveformClosed) return;
+		this.reset(); this.checkAllowedFile(handle);
+		// FIX55: Do not synchronously read/decompress disk waveform caches inside
+		// the playback callback. Fast skip bursts can otherwise stack expensive
+		// filesystem/JSON operations on the JS/UI thread before a frame is painted.
+		// Already decoded RAM entries still appear immediately.
+		try {
+			const memoryKey = this.analysis.binaryMode === 'audioWizard' ? this.waveformCacheKey(handle) : null;
+			if (memoryKey && this.waveformMemory && this.waveformMemory.has(memoryKey) && this.loadWaveformCache(handle)) {
+				this.normalizePoints(this.ui.sizeNormalizeWidth);
+				this.finishWaveformTrack(handle);
+				return;
+			}
+		} catch (e) { console.log(`波形内存缓存读取失败: ${e.message || e}`); }
 		this.waveformNextTrack = { handle, isRetry, epoch };
-		this.current = []; this.cache = [];
-		if (!this.waveformJob) this.waveformJob = Promise.resolve().then(() => this.drainWaveformTracks());
-		await this.waveformJob;
+		this.throttlePaint(true);
+		// Debounce native decoding only; a cached waveform is already visible.
+		this.queueId = setTimeout(() => {
+			this.queueId = null;
+			if (!this.waveformJob && !this.waveformClosed)
+				this.waveformJob = Promise.resolve().then(() => this.drainWaveformTracks());
+		}, this.analysis.binaryMode === 'visualizer' ? 0 : this.queueMs);
 	}
 
 	async drainWaveformTracks() {
 		try {
-			while (this.waveformNextTrack && !this.waveformClosed) {
+			while (this.waveformNextTrack && !this.waveformClosed && !this.queueId) {
 				const { handle, isRetry, epoch } = this.waveformNextTrack;
 				this.waveformNextTrack = null;
 				if (epoch !== this.waveformEpoch || grSet.seekbar !== 'waveformbar' || !this.active) continue;
-				this.reset(); this.checkAllowedFile(handle);
 				await this.analyzeDataStart(handle, isRetry, epoch);
 				if (epoch !== this.waveformEpoch || this.waveformClosed) continue;
-				this.resetAnimation();
-				if (this.preset.animate && this.preset.useBPM) this.bpmSteps(handle);
-				if (fb.IsPlaying) this.time = fb.PlaybackTime;
-				this.throttlePaint();
+				this.finishWaveformTrack(handle);
 			}
-		} catch (e) { console.log(`波形 FIX14 => ${e.message || e}`); }
-		finally {
+		} catch (e) {
+			console.log(`波形 FIX52 => ${e.message || e}`);
+			if (!this.waveformNextTrack && !this.waveformClosed) { this.isError = true; this.throttlePaint(true); }
+		} finally {
 			this.waveformJob = null;
-			if (this.waveformNextTrack && !this.waveformClosed)
+			if (this.waveformNextTrack && !this.waveformClosed && !this.queueId)
 				this.waveformJob = Promise.resolve().then(() => this.drainWaveformTracks());
 		}
 	}
 
-	/**
-	 * Schedules the `on_playback_new_track` event to be triggered after a specified delay.
-	 * This is useful for debouncing the event, ensuring it is fired only once after a series of track changes.
-	 */
-	on_playback_new_track_queue() {
-		clearTimeout(this.queueId);
-
-		this.queueId = setTimeout(() => {
-			this.on_playback_new_track(...arguments);
-		}, this.queueMs);
+	/** Cache lookup and epoch invalidation run at the track event, without a 1 s delay. */
+	on_playback_new_track_queue(handle = fb.GetNowPlaying(), isRetry = false) {
+		this.on_playback_new_track(handle, isRetry);
 	}
 
 	/**
@@ -4702,6 +4790,7 @@ class WaveformBar {
 	on_playback_stop(reason = -1) {
 		this.waveformEpoch = (this.waveformEpoch || 0) + 1;
 		this.waveformNextTrack = null;
+		this.cancelWaveformAnalysis();
 		clearTimeout(this.queueId);
 		if (['progressbar', 'peakmeterbar'].includes(grSet.seekbar) || reason !== -1 && !this.active) {
 			return;
@@ -4745,8 +4834,9 @@ class WaveformBar {
 		this.waveformClosed = true;
 		this.waveformEpoch = (this.waveformEpoch || 0) + 1;
 		this.waveformNextTrack = null;
+		this.cancelWaveformAnalysis();
 		clearTimeout(this.queueId);
-		if (AudioWizard && this.analysisInProgress) { try { AudioWizard.StopWaveformAnalysis(); } catch (e) {} }
+		
 		if (['progressbar', 'peakmeterbar'].includes(grSet.seekbar)) return;
 		if (this.analysis.autoDelete) this.removeData();
 	}

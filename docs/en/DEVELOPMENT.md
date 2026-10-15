@@ -6,7 +6,7 @@
 
 - Confirmed on 2026-10-14: FIX51, the edition with the full feature set based on Chinese-localized TT / Georgia-ReBORN.
 - GitHub maintains only the latest full-featured edition, not the simplified community edition. No installers or release artifacts are produced.
-- The repository stores FIX51 scripts and resources without additional changes to their runtime behavior.
+- The current development version is FIX52; FIX51 remains the confirmed stable baseline.
 
 ## Design decisions
 
@@ -20,6 +20,8 @@
 | Interlude prompt | Prefer lower empty space; reduce prompt opacity over lyrics without compressing lyric layout |
 | CD arc | Position horizontal-style rows individually; keep tilted rows parallel within a sentence and clear of the CD |
 | Album flow | Size the center album independently; the moving glow effect has been discontinued |
+| Details fonts | Settings and Ctrl+wheel support up to 48 px; fit to the actual Details region and recalculate after size changes |
+| Waveform loading | Prioritize caches, keep only the latest waiting track, cancel previous requests, and bound callback waits and retries |
 | Performance | Retain caches and regional rendering; reuse existing animation timing where possible |
 
 ## Repository scope

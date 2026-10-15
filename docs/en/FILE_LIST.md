@@ -2,7 +2,7 @@
 
 [简体中文](../文件清单.md) | **English**
 
-The current script baseline is FIX51. Source paths correspond to relative paths in the runtime setup; `scripts/` is the repository's source directory.
+The current script version is FIX52; the stable baseline is FIX51. Source paths correspond to relative paths in the runtime setup; `scripts/` is the repository's source directory.
 
 | Category | JavaScript files |
 | --- | --- |

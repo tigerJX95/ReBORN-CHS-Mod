@@ -1240,33 +1240,33 @@ class TopMenuOptions {
 
 		// * DETAILS - ARTIST * //
 		const detailsFontSizeMenu = new Menu('详情');
-		detailsFontSizeMenu.createRadioSubMenu('艺术家', ['10 像素', '11 像素', '12 像素', '13 像素', '14 像素', '15 像素', '16 像素', '17 像素', HD_QHD_4K('18 像素（默认）', '18 像素'), '19 像素', HD_QHD_4K('20 像素', '20 像素（默认）'), '22 像素', '24 像素'], grSet.gridArtistFontSize_layout,
-			[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24], (size) => {
-			grm.display.setGridArtistFontSize(size);
+		detailsFontSizeMenu.createRadioSubMenu('艺术家', ['10 像素', '11 像素', '12 像素', '13 像素', '14 像素', '15 像素', '16 像素', '17 像素', HD_QHD_4K('18 像素（默认）', '18 像素'), '19 像素', HD_QHD_4K('20 像素', '20 像素（默认）'), '22 像素', '24 像素', '26 像素', '28 像素', '30 像素', '32 像素', '36 像素', '40 像素', '44 像素', '48 像素'], grSet.gridArtistFontSize_layout,
+			[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 48], (size) => {
+			grm.details.setMetadataFontSize('artist', size);
 		});
 
 		// * DETAILS - TITLE * //
-		detailsFontSizeMenu.createRadioSubMenu('标题', ['10 像素', '11 像素', '12 像素', '13 像素', '14 像素', '15 像素', '16 像素', '17 像素', HD_QHD_4K('18 像素（默认）', '18 像素'), '19 像素', HD_QHD_4K('20 像素', '20 像素（默认）'), '22 像素', '24 像素'], grSet.gridTrackNumFontSize_layout && grSet.gridTitleFontSize_layout,
-			[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24], (size) => {
-			grm.display.setGridTitleFontSize(size);
+		detailsFontSizeMenu.createRadioSubMenu('标题', ['10 像素', '11 像素', '12 像素', '13 像素', '14 像素', '15 像素', '16 像素', '17 像素', HD_QHD_4K('18 像素（默认）', '18 像素'), '19 像素', HD_QHD_4K('20 像素', '20 像素（默认）'), '22 像素', '24 像素', '26 像素', '28 像素', '30 像素', '32 像素', '36 像素', '40 像素', '44 像素', '48 像素'], grSet.gridTrackNumFontSize_layout && grSet.gridTitleFontSize_layout,
+			[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 48], (size) => {
+			grm.details.setMetadataFontSize('title', size);
 		});
 
 		// * DETAILS - ALBUM * //
-		detailsFontSizeMenu.createRadioSubMenu('专辑', ['10 像素', '11 像素', '12 像素', '13 像素', '14 像素', '15 像素', '16 像素', '17 像素', HD_QHD_4K('18 像素（默认）', '18 像素'), '19 像素', HD_QHD_4K('20 像素', '20 像素（默认）'), '22 像素', '24 像素'], grSet.gridAlbumFontSize_layout,
-			[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24], (size) => {
-			grm.display.setGridAlbumFontSize(size);
+		detailsFontSizeMenu.createRadioSubMenu('专辑', ['10 像素', '11 像素', '12 像素', '13 像素', '14 像素', '15 像素', '16 像素', '17 像素', HD_QHD_4K('18 像素（默认）', '18 像素'), '19 像素', HD_QHD_4K('20 像素', '20 像素（默认）'), '22 像素', '24 像素', '26 像素', '28 像素', '30 像素', '32 像素', '36 像素', '40 像素', '44 像素', '48 像素'], grSet.gridAlbumFontSize_layout,
+			[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 48], (size) => {
+			grm.details.setMetadataFontSize('album', size);
 		});
 
 		// * DETAILS - TAG NAME * //
-		detailsFontSizeMenu.createRadioSubMenu('标签名', ['10 像素', '11 像素', '12 像素', '13 像素', '14 像素', '15 像素', '16 像素', HD_QHD_4K('17 像素（默认）', '17 像素'), '18 像素', HD_QHD_4K('19 像素', '19 像素（默认）'), '20 像素', '22 像素', '24 像素'], grSet.gridKeyFontSize_layout,
-			[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24], (size) => {
-			grm.display.setGridTagKeyFontSize(size);
+		detailsFontSizeMenu.createRadioSubMenu('标签名', ['10 像素', '11 像素', '12 像素', '13 像素', '14 像素', '15 像素', '16 像素', HD_QHD_4K('17 像素（默认）', '17 像素'), '18 像素', HD_QHD_4K('19 像素', '19 像素（默认）'), '20 像素', '22 像素', '24 像素', '26 像素', '28 像素', '30 像素', '32 像素', '36 像素', '40 像素', '44 像素', '48 像素'], grSet.gridKeyFontSize_layout,
+			[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 48], (size) => {
+			grm.details.setMetadataFontSize('key', size);
 		});
 
 		// * DETAILS - TAG VALUE * //
-		detailsFontSizeMenu.createRadioSubMenu('标签值', ['10 像素', '11 像素', '12 像素', '13 像素', '14 像素', '15 像素', '16 像素', HD_QHD_4K('17 像素（默认）', '17 像素'), '18 像素', HD_QHD_4K('19 像素', '19 像素（默认）'), '20 像素', '22 像素', '24 像素'], grSet.gridValueFontSize_layout,
-			[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24], (size) => {
-			grm.display.setGridTagValueFontSize(size);
+		detailsFontSizeMenu.createRadioSubMenu('标签值', ['10 像素', '11 像素', '12 像素', '13 像素', '14 像素', '15 像素', '16 像素', HD_QHD_4K('17 像素（默认）', '17 像素'), '18 像素', HD_QHD_4K('19 像素', '19 像素（默认）'), '20 像素', '22 像素', '24 像素', '26 像素', '28 像素', '30 像素', '32 像素', '36 像素', '40 像素', '44 像素', '48 像素'], grSet.gridValueFontSize_layout,
+			[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 48], (size) => {
+			grm.details.setMetadataFontSize('value', size);
 		});
 		detailsFontSizeMenu.appendTo(changeFontSizeMenu);
 

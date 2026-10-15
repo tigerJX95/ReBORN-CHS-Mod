@@ -6,7 +6,7 @@
 
 This project is a collection of script modifications for a compatible Chinese-localized foobar2000 and TT / Georgia-ReBORN setup. It cannot run independently and should not be installed as a complete theme into an otherwise empty foobar2000 setup.
 
-Keep the original unmodified scripts, script component, fonts, and other resources. Exact component versions have not yet been documented; use the Chinese-localized setup matching FIX51.
+Keep the original unmodified scripts, script component, fonts, and other resources. Exact component versions have not yet been documented; use the Chinese-localized setup matching the stable FIX51 baseline.
 
 ## Replacing files
 
@@ -22,7 +22,15 @@ Keep the original unmodified scripts, script component, fonts, and other resourc
 | `scripts/Biography/scripts/*.js` | Matching files in `Biography/scripts/` |
 | Files inside `scripts/Library/` | Matching relative paths in `Library/` |
 
-Upgrading from FIX50 to FIX51 requires replacing only `Base/gr-lyrics.js`. An existing FIX51 setup does not require repeated replacement.
+To upgrade from FIX51 to FIX52, replace these five files:
+
+- `Base/gr-main-components.js`
+- `Base/gr-details.js`
+- `Base/gr-menu.js`
+- `Base/gr-callbacks.js`
+- `Base/gr-config-defaults.js`
+
+Upgrading from FIX50 to FIX51 requires replacing only `Base/gr-lyrics.js`. An existing FIX52 setup does not require repeated replacement.
 
 ## Main settings
 
@@ -33,6 +41,10 @@ Upgrading from FIX50 to FIX51 requires replacing only `Base/gr-lyrics.js`. An ex
 - Star animation: applies to original lyrics only, not translations.
 
 Exact menu paths depend on the Chinese-localized setup and active page. The English documentation does not translate the script interface.
+
+Details font sizes can be set up to 48 px under Font size → Details, or adjusted with Ctrl+wheel over the corresponding text area. The rendered size may differ from the setting when the Details region requires text fitting.
+
+The waveform bar prioritizes cached data. Tracks without a cache still require AudioWizard analysis; processing time depends on the file, analysis resolution, and runtime environment.
 
 ## Checking changes and recovering
 
