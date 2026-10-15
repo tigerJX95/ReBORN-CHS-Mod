@@ -69,11 +69,7 @@ function on_playback_new_track(metadb) {
 	grm.debug.setDebugProfile(grm.debug.showDebugTiming || grCfg.settings.showDebugPerformanceOverlay, 'create', '播放_新的_音轨');
 	grm.debug.debugLog('播放 => 播放_新的_音轨()');
 
-	// FIX55: log only slow synchronous playback stages; no extra timers or
-	// repaint calls are introduced on the hot path.
-	const playbackStageStart = Date.now();
 	grm.ui.handlePlaybackNewTrack(metadb);
-	const mainUiElapsed = Date.now() - playbackStageStart;
 	grm.details.updateTurntableState();
 	pl.call.on_playback_new_track(metadb); // Always process for Playlist: updates now-playing state even when hidden
 
@@ -84,10 +80,6 @@ function on_playback_new_track(metadb) {
 		bio.call.on_playback_new_track();
 	}
 
-	const totalElapsed = Date.now() - playbackStageStart;
-	if (totalElapsed > 120) {
-		console.log(`FIX55 切歌耗时: UI=${mainUiElapsed}ms, 其余=${totalElapsed - mainUiElapsed}ms, 总计=${totalElapsed}ms`);
-	}
 	grm.debug.setDebugProfile(false, 'print', '播放_新的_音轨');
 }
 
@@ -1038,36 +1030,36 @@ function on_mouse_wheel(step) {
 	if (grm.ui.displayDetails) {
 		if (grm.details.mouseInMetadataGrid(grm.ui.state.mouse_x, grm.ui.state.mouse_y, 'artist')) {
 			KeyPressAction({
-				ctrlNoShift: () => grm.details.setMetadataFontSize('artist', step),
-				altNoShift: () => grm.details.setMetadataFontSize('artist', 0)
+				ctrlNoShift: () => grm.display.setGridArtistFontSize(step),
+				altNoShift: () => grm.display.setGridArtistFontSize(0)
 			});
 			return;
 		}
 		if (grm.details.mouseInMetadataGrid(grm.ui.state.mouse_x, grm.ui.state.mouse_y, 'title')) {
 			KeyPressAction({
-				ctrlNoShift: () => grm.details.setMetadataFontSize('title', step),
-				altNoShift: () => grm.details.setMetadataFontSize('title', 0)
+				ctrlNoShift: () => grm.display.setGridTitleFontSize(step),
+				altNoShift: () => grm.display.setGridTitleFontSize(0)
 			});
 			return;
 		}
 		if (grm.details.mouseInMetadataGrid(grm.ui.state.mouse_x, grm.ui.state.mouse_y, 'album')) {
 			KeyPressAction({
-				ctrlNoShift: () => grm.details.setMetadataFontSize('album', step),
-				altNoShift: () => grm.details.setMetadataFontSize('album', 0)
+				ctrlNoShift: () => grm.display.setGridAlbumFontSize(step),
+				altNoShift: () => grm.display.setGridAlbumFontSize(0)
 			});
 			return;
 		}
 		if (grm.details.mouseInMetadataGrid(grm.ui.state.mouse_x, grm.ui.state.mouse_y, 'tagKey')) {
 			KeyPressAction({
-				ctrlNoShift: () => grm.details.setMetadataFontSize('key', step),
-				altNoShift: () => grm.details.setMetadataFontSize('key', 0)
+				ctrlNoShift: () => grm.display.setGridTagKeyFontSize(step),
+				altNoShift: () => grm.display.setGridTagKeyFontSize(0)
 			});
 			return;
 		}
 		if (grm.details.mouseInMetadataGrid(grm.ui.state.mouse_x, grm.ui.state.mouse_y, 'tagValue')) {
 			KeyPressAction({
-				ctrlNoShift: () => grm.details.setMetadataFontSize('value', step),
-				altNoShift: () => grm.details.setMetadataFontSize('value', 0)
+				ctrlNoShift: () => grm.display.setGridTagValueFontSize(step),
+				altNoShift: () => grm.display.setGridTagValueFontSize(0)
 			});
 		}
 		if (grm.details.isLyricsVisible() && (
@@ -1192,8 +1184,8 @@ function on_playback_dynamic_info_track() {
 		grm.debug.callLog('简介 => 播放_动态_信息_音轨');
 		bio.call.on_playback_dynamic_info_track();
 	}
-	if (grm.details.isLyricsVisible()) { // Do not bypass the FIX58 disc/lyrics sequencing on dynamic titles.
-		grm.ui.initLyricsNewTrack();
+	if (grm.details.isLyricsVisible()) { // No need to try retrieving them if we aren't going to display them now
+		grm.lyrics.initLyrics();
 	}
 }
 
@@ -1302,12 +1294,6 @@ function on_playback_starting(cmd, is_paused) {
  * - 3 - Fb2k is shutting down.
  */
 function on_playback_stop(reason) {
-	// FIX56: a hard stop must not leave a delayed lyrics load queued.
-	if (reason !== 2) {
-		clearTimeout(grm.ui.pendingNewTrackLyricsTimer);
-		grm.ui.pendingNewTrackLyricsTimer = null;
-		grm.ui.pendingNewTrackLyricsEpoch = (grm.ui.pendingNewTrackLyricsEpoch || 0) + 1;
-	}
 	grm.debug.debugLog('播放 => 重绘 播放_停止:', reason);
 
 	grm.ui.handlePlaybackStop(reason);

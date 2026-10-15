@@ -1,54 +1,40 @@
-# TT Modified Scripts
+# TT Modified Scripts — ReBORN-CHS-Mod
 
-[简体中文](README.md) | **English**
+A personal modification project based on the Chinese-localized foobar2000 TT / Georgia-ReBORN scripts, preserving tested enhancements, fixes, and development history.
 
-A script modification project based on the Chinese-localized TT / Georgia-ReBORN setup for foobar2000, preserving personal enhancements, fixes, and development notes.
-
-Current version: **FIX53**; stable baseline: **FIX51**. Only the latest edition with the full feature set is maintained; the simplified community edition is not maintained here.
+**Current stable development baseline: FIX62**, rebuilt from the proven FIX51 scripts. Only the full-featured edition is maintained.
 
 ## Purpose
 
-Keep script changes available for comparison, rollback, and continued development. The repository contains JavaScript source and related resources for an existing compatible Chinese-localized foobar2000 and TT / Georgia-ReBORN setup.
+This repository provides JavaScript scripts and related resources, **not a standalone foobar2000 installation**. A compatible foobar2000, JSplitter and TT / Georgia-ReBORN environment is required.
 
-## Main enhancements
+## Key features
 
-- Turntable mode, CD rotation, and immersive display, including fixes for view changes and restoring the minimized player.
-- Scrolling lyrics in Details and lyrics arranged along the CD arc, with original lines, wrapped lines, and translations.
-- Word-by-word karaoke highlighting, highlighting styles, and star animations on original lyrics. Translations do not use the star animation.
-- Traditional Chinese vertical lyrics, with shared settings for the Lyrics page, Details, and the turntable lyric area, plus a Details context-menu entry.
-- Fade-mask settings; vertical Chinese lyrics fade at the left and right edges.
-- Custom-theme lyric colors, with separate settings for the main interface and Biography.
-- An interlude countdown that uses empty space below the lyrics where available and becomes more transparent when it overlaps lyrics.
-- 3D album flow in the library, independent center-album sizing, perspective and spacing settings, and automatic return after inactivity. The moving glow effect has been discontinued.
+- Turntable and CD animation, immersive display, and related state-recovery fixes.
+- Scrolling lyrics, CD-arc lyrics, karaoke word highlighting, vertical Chinese layouts, and configurable masks.
+- Custom theme/lyrics colors, interlude countdown, and 3D album CoverFlow.
+- **FIX62:** waveform request delay reduced from 1000ms to 500ms, with the stable FIX51 native waveform handling retained.
+- **FIX62:** Details font sizing up to 32px; automatic non-scrolling height fitting; hide internal playlist placeholder text without removing legitimate playlist information.
 
-## Directory layout
+## Repository layout
 
-| Path | Purpose |
-| --- | --- |
-| `scripts/Base/` | Main interface, Details, lyrics, menus, and settings |
-| `scripts/Biography/scripts/` | Modified Biography scripts |
-| `scripts/Library/` | Library scripts, entry point, and existing resources |
-| `CHANGELOG.en.md` | Version history |
-| `docs/en/INSTALLATION.md` | Replacement, backup, settings, and recovery |
-| `docs/en/DEVELOPMENT.md` | Design decisions and outstanding information |
-| `docs/en/GITHUB_WORKFLOW.md` | Initial upload and ongoing maintenance |
-| `docs/en/FILE_LIST.md` | Script inventory and current-version checksums |
-| `THIRD_PARTY_NOTICES.en.md` | Sources, attribution, and license information |
+- `scripts/Base/` — main UI, Details, lyrics, menus and settings
+- `scripts/Biography/scripts/` — related biography script changes
+- `scripts/Library/` — library script and resources
+- `CHANGELOG.md` / `CHANGELOG.en.md` — version history
+- `THIRD_PARTY_NOTICES.md` — third-party attribution and licenses
+- `SHA256SUMS` — file integrity checksums
 
-## Requirements
+## Installation
 
-A working TT / Georgia-ReBORN setup with its script component, fonts, and resources is required. The repository includes **31 JavaScript files** and existing library resources. It is not a complete player setup and does not include every unmodified upstream script.
+Exit foobar2000 and back up your scripts and settings. Copy the matching scripts to your existing profile, retaining any other upstream files. Do not replace the entire player configuration blindly.
 
-The original main-script header identifies its version as `3.0-x64-DEV`; the library package metadata identifies Library Tree `2.4.0`. These are source identifiers, rather than verified versions of the entire runtime setup. Exact foobar2000, script-component, and setup versions remain to be documented.
+## Development and version policy
 
-Close foobar2000 and back up the corresponding scripts and personal configuration before replacing files. Merge files using their relative paths and preserve other setup files. See [Installation and usage](docs/en/INSTALLATION.md).
+FIX62 is based on FIX51, **not** the previously abandoned FIX52–FIX62 experimental branch that exhibited intermittent UI freezes on SACD ISO track changes. Those historical commits can remain in Git history. Only the current scripts and formal documentation belong in this source package.
 
-## Maintenance
+FIX62 passed user-performed Windows playback regression testing, including SACD ISO track switching. Static JavaScript syntax checks are not a substitute for testing every system.
 
-FIX51 is the current stable baseline. Only the latest scripts and documentation are committed; previous versions remain in Git history. Old ZIP files and duplicate source copies are not stored in the repository. No build or release-artifact workflow is configured.
+## Attribution
 
-## Sources and acknowledgments
-
-Thanks to [TT / Georgia-ReBORN](https://github.com/TT-ReBORN/Georgia-ReBORN), the authors of foobar2000 and its components, 风里尘 for the Chinese-localized modification of TT / Georgia-ReBORN, and Gemini and ChatGPT for assistance with code changes and documentation.
-
-This is a personal modification project, not an official release from the original authors. See [Third-party notices](THIRD_PARTY_NOTICES.en.md) for sources and licensing information.
+Thanks to the TT / Georgia-ReBORN contributors, foobar2000 and its component developers, the Chinese localization contributors, Gemini and ChatGPT for assistance in development and documentation. This is an unofficial personal fork; retain upstream attribution and applicable third-party notices.

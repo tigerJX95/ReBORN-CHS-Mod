@@ -1630,47 +1630,35 @@ class MainUI {
 		if (!this.flagImgs.length) return 0;
 
 		const fontSize = type === 'metadataGrid' ? grSet.gridArtistFontSize_layout : grSet.lowerBarFontSize_layout;
-		const numericFontSize = Number(fontSize);
-		const safeFontSize = Number.isFinite(numericFontSize) && numericFontSize > 0 ? numericFontSize : 24;
-		const flagCountIndex = Math.max(0, 6 - Math.min(this.flagImgs.length, 6));
-		// The grid metrics are recalculated during layout transitions. Reuse the
-		// previous value until either font size or number of flags changes.
-		const cached = this._flagSizeWhiteSpaceCache;
-		if (cached && cached.fontSize === safeFontSize && cached.flagCountIndex === flagCountIndex) {
-			return cached.value;
-		}
 
-		// Allocate the legacy table once, not on every recalculation.
-		if (!this._flagSizeWhiteSpaceTable) {
-			this._flagSizeWhiteSpaceTable = {
-				24: [35, 29, 24, 18, 12, 6],
-				23: [36, 30, 25, 19, 12, 6],
-				22: [36, 30, 25, 19, 12, 6],
-				21: [37, 31, 26, 20, 12, 6],
-				20: [37, 31, 26, 20, 12, 6],
-				19: [38, 32, 26, 20, 12, 6],
-				18: [39, 32, 26, 20, 13, 6],
-				17: [40, 33, 27, 20, 13, 6],
-				16: [41, 34, 28, 21, 13, 6],
-				15: [42, 35, 29, 22, 14, 6],
-				14: [44, 36, 29, 22, 14, 6],
-				13: [45, 37, 30, 23, 15, 6],
-				12: [47, 39, 31, 24, 15, 7],
-				11: [49, 41, 32, 25, 16, 7],
-				10: [51, 43, 34, 26, 17, 7]
-			};
-		}
-		const flagSizeWhiteSpaceTable = this._flagSizeWhiteSpaceTable;
-		const boundedFontSize = Math.max(10, Math.min(24, safeFontSize));
-		const lowerSize = Math.floor(boundedFontSize);
-		const upperSize = Math.ceil(boundedFontSize);
-		const lowerSpaces = flagSizeWhiteSpaceTable[lowerSize][flagCountIndex];
-		const upperSpaces = flagSizeWhiteSpaceTable[upperSize][flagCountIndex];
-		const interpolatedSpaces = lowerSpaces + (upperSpaces - lowerSpaces) * (boundedFontSize - lowerSize);
-		const spaceCount = Math.max(0, Math.min(256, Math.round(interpolatedSpaces * boundedFontSize / safeFontSize)));
-		const value = ' '.repeat(spaceCount);
-		this._flagSizeWhiteSpaceCache = { fontSize: safeFontSize, flagCountIndex, value };
-		return value;
+		const flagSizeWhiteSpaceTable = {
+			24: [35, 29, 24, 18, 12, 6],
+			23: [36, 30, 25, 19, 12, 6],
+			22: [36, 30, 25, 19, 12, 6],
+			21: [37, 31, 26, 20, 12, 6],
+			20: [37, 31, 26, 20, 12, 6],
+			19: [38, 32, 26, 20, 12, 6],
+			18: [39, 32, 26, 20, 13, 6],
+			17: [40, 33, 27, 20, 13, 6],
+			16: [41, 34, 28, 21, 13, 6],
+			15: [42, 35, 29, 22, 14, 6],
+			14: [44, 36, 29, 22, 14, 6],
+			13: [45, 37, 30, 23, 15, 6],
+			12: [47, 39, 31, 24, 15, 7],
+			11: [49, 41, 32, 25, 16, 7],
+			10: [51, 43, 34, 26, 17, 7]
+		};
+
+		return ' '.repeat(
+			flagSizeWhiteSpaceTable[fontSize][
+				this.flagImgs.length >=  6 ? 0 :
+				this.flagImgs.length === 5 ? 1 :
+				this.flagImgs.length === 4 ? 2 :
+				this.flagImgs.length === 3 ? 3 :
+				this.flagImgs.length === 2 ? 4 :
+				5
+			]
+		);
 	}
 
 	/**
@@ -6068,45 +6056,20 @@ class MainUI {
 	 * Initializes the lyrics display when a new track is played.
 	 */
 	initLyricsNewTrack() {
-		// FIX60: Clear the previous song immediately. Heavy new lyrics initialization
-		// still waits for the disc transition (FIX58/59).
-		grm.lyrics.invalidateLyricsForTrackTransition();
 		if (grSet.lyricsLayout !== 'normal') {
 			this.displayPlaylist = false;
 			this.resizeArtwork(true);
 		}
-		// FIX58: Prioritize the real disc eject/entry over expensive lyrics parsing.
-		// A 45ms delay alone (FIX56) could still overlap the active slide.
-		// Keep only the most recent request; do not start or requeue a lyrics load
-		// during a Details disc transition. Polling only reads state (no repaint).
-		clearTimeout(this.pendingNewTrackLyricsTimer);
-		const epoch = this.pendingNewTrackLyricsEpoch = (this.pendingNewTrackLyricsEpoch || 0) + 1;
-		const runLatestLyrics = () => {
-			this.pendingNewTrackLyricsTimer = null;
-			if (epoch !== this.pendingNewTrackLyricsEpoch || !fb.IsPlaying ||
-				!grm.details.isLyricsVisible()) return;
-			// The transition can still be waiting for asynchronous artwork.
-			// Never parse lyrics until the *current* disc has finished entering.
-			if (grSet.discArtAnimation && grm.ui.displayDetails &&
-				!grm.details.usesTurntableRenderer() &&
-				grm.details.isDiscArtTransitionActive()) {
-				this.pendingNewTrackLyricsTimer = setTimeout(runLatestLyrics, 32);
-				return;
-			}
+		setTimeout(() => {
 			grm.lyrics.initLyrics();
 			grm.button.initButtonState();
-		};
-		this.pendingNewTrackLyricsTimer = setTimeout(runLatestLyrics, 45);
+		}, 1);
 	}
 
 	/**
 	 * Initializes the lyrics display when a track stops.
 	 */
 	initLyricsStopTrack() {
-		// FIX56: invalidate deferred work even if playback stopped before it fired.
-		clearTimeout(this.pendingNewTrackLyricsTimer);
-		this.pendingNewTrackLyricsTimer = null;
-		this.pendingNewTrackLyricsEpoch = (this.pendingNewTrackLyricsEpoch || 0) + 1;
 		if (fb.IsPlaying) return;
 
 		this.displayPlaylist = grSet.lyricsLayout !== 'full';

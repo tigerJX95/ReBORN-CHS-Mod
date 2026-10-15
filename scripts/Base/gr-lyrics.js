@@ -39,11 +39,6 @@ class Lyrics {
 		this.lyricsSearching = false;
 		/** @type {boolean} The flag to ensure the ESLyric save command is sent only once per search. */
 		this.lyricsSaveCommandSent = false;
-		// FIX59: Coalesce ESLyric notifications outside the native callback and disc transition.
-		this.esLyricChangedCallback = meta => this.queueESLyricChange(meta);
-		this.esLyricChangeTimer = null;
-		this.esLyricPendingMeta = null;
-		this.esLyricCallbackRegistered = false;
 		/** @type {number} The maximum number of polling retries before giving up (60 seconds). */
 		this.lyricsSearchMaxRetries = 60;
 		/** @type {number} The current polling retry counter. */
@@ -306,24 +301,6 @@ class Lyrics {
 		this.on_size(this.x, this.y, this.w, this.h);
 	}
 
-	/** FIX60: Immediately hide stale lyrics at a track boundary without decoding or laying out new lyrics. */
-	invalidateLyricsForTrackTransition() {
-		if (this.lyricsClosed) return;
-		// Invalidate any pending save/verify/ESLyric work before the CD animation starts.
-		this.lyricLoadEpoch = (this.lyricLoadEpoch || 0) + 1;
-		this.abortSearch();
-		// Unlike clear(), avoid expensive font/layout/bitmap cache reconstruction here.
-		if (this.timer) {
-			grAnimationManager.remove(this.timer);
-			this.timer = null;
-		}
-		this.lyrics = [];
-		this.lyricSource = [];
-		this.locus = -1;
-		this.lyr = '';
-		this.repaintRect();
-	}
-
 	/**
 	 * 初始化歌词，步骤如下：
      * - 如果在本地缓存或嵌入标签中找到，则从缓存加载。
@@ -346,10 +323,7 @@ class Lyrics {
 		const foundLyrics = this.findLyrics();
 
 		 // * 当歌词更改时启动ESLyric回调监听器
-		if (Component.ESLyric && !this.esLyricCallbackRegistered) {
-			esl.SetPlayingLyricChangedCallback(this.esLyricChangedCallback);
-			this.esLyricCallbackRegistered = true;
-		}
+		esl.SetPlayingLyricChangedCallback(this.changeLyrics.bind(this));
 
 		if (foundLyrics) {
 			if (grm.ui.displayLyrics) grm.debug.debugLog('找到歌词:', this.fileName);
@@ -469,31 +443,6 @@ class Lyrics {
      * 更改当前歌词（更改歌词来源时使用），仅用于ESLyric的"歌词搜索"。
      * @param {object} meta - 包含新歌词文本的元数据对象。
 	 */
-	/** FIX59: Never parse/search/save synchronously inside ESLyric's notification callback. */
-	queueESLyricChange(meta) {
-		if (this.lyricsClosed || !meta || !meta.lyricText || this.lyricsLoadedFromLocal) return;
-		// An ESLyric result received before the new track has initialized may belong to the old song.
-		if (grm.ui.pendingNewTrackLyricsTimer) return;
-		this.esLyricPendingMeta = meta;
-		clearTimeout(this.esLyricChangeTimer);
-		const epoch = this.lyricLoadEpoch || 0;
-		const flush = () => {
-			this.esLyricChangeTimer = null;
-			if (this.lyricsClosed || epoch !== (this.lyricLoadEpoch || 0)) return;
-			// A new track may be awaiting FIX58's disc-first initialization.
-			if (grm.ui.pendingNewTrackLyricsTimer ||
-				(grSet.discArtAnimation && grm.ui.displayDetails &&
-				!grm.details.usesTurntableRenderer() && grm.details.isDiscArtTransitionActive())) {
-				this.esLyricChangeTimer = setTimeout(flush, 40);
-				return;
-			}
-			const current = this.esLyricPendingMeta;
-			this.esLyricPendingMeta = null;
-			if (current && fb.IsPlaying) this.changeLyrics(current);
-		};
-		this.esLyricChangeTimer = setTimeout(flush, 40);
-	}
-
 	changeLyrics(meta) {
 		if (this.lyricsClosed) return;
 		// * Case 1: suppress spontaneous post-load callbacks
@@ -5126,9 +5075,6 @@ class Lyrics {
 	 * 将高亮歌词推进到下一个时间戳组。
 	 */
 	abortSearch() {
-		clearTimeout(this.esLyricChangeTimer);
-		this.esLyricChangeTimer = null;
-		this.esLyricPendingMeta = null;
 		for (const property of ['localLyricsUnlockTimer', 'lyricsVerifyTimer', 'lyricsNextSaveTimer', 'lyricsNextReloadTimer']) {
 			clearTimeout(this[property]); this[property] = null;
 		}
