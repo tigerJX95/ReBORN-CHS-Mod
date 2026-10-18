@@ -355,6 +355,8 @@ function on_focus(is_focused) {
 		bio.call.on_focus(is_focused);
 	}
 	if (is_focused) {
+		// Windows unlock may preserve IsVisible and swallow the last repaint.
+		grAnimationManager.wakeAfterDesktopResume('focus');
 		plman.SetActivePlaylistContext(); // When the panel gets focus but not on every click.
 	} else {
 		grm.ui.clearTimer('hideCursor'); // Not sure this is required, but I think the mouse was occasionally disappearing
@@ -1325,6 +1327,7 @@ function on_playback_stop(reason) {
  * @global
  */
 function on_playback_time() {
+	grAnimationManager.observePlaybackPulse();
 	grm.ui.handlePlaybackTime();
 	grm.waveBar.on_playback_time(fb.PlaybackTime);
 	grm.ui.displayBiography && bio.call.on_playback_time();

@@ -31,6 +31,7 @@ const grAnimationManager = new class {
 		this.dirtyRect = null;
 		this.closed = false;
 		this.windowHidden = false;
+		this.lastPlaybackPulseAt = 0;
 	}
 
 	now() {
@@ -73,6 +74,42 @@ const grAnimationManager = new class {
 		if (details?.isTurntableActive()) details.updateTurntableState();
 		this.schedule();
 		return true;
+	}
+
+
+	/** Recover the paint scheduler after Windows lock/unlock without rebuilding artwork. */
+	wakeAfterDesktopResume(reason = 'focus') {
+		if (this.closed || window.IsVisible === false || window.Width <= 0 || window.Height <= 0) return;
+		const now = this.now();
+		// A lock screen need not produce an IsVisible transition. Discard the
+		// native paint request which may have been lost while the screen was locked.
+		this.paintPending = false;
+		this.paintRequestedAt = 0;
+		if (this.repaintTimer !== null) clearTimeout(this.repaintTimer);
+		this.repaintTimer = null;
+		this.dirtyRect = null;
+		const details = grm.details;
+		if (details) {
+			details.turntablePaintPending = false;
+			details.turntablePaintRequestedAt = 0;
+			details.turntableLastTick = now;
+			details.turntableLastPaintAt = now;
+		}
+		for (const job of this.jobs.values()) {
+			if (job.role === 'turntable' && details) job.interval = details.getTurntableRefreshDelay();
+			job.due = now + Math.max(16, job.interval);
+		}
+		if (details?.isTurntableActive()) details.updateTurntableState();
+		this.schedule();
+		this.requestRepaint();
+	}
+
+	/** A long playback callback gap is a conservative lock/suspend indicator. */
+	observePlaybackPulse() {
+		const now = this.now();
+		const gap = this.lastPlaybackPulseAt ? now - this.lastPlaybackPulseAt : 0;
+		this.lastPlaybackPulseAt = now;
+		if (gap > 8000) this.wakeAfterDesktopResume('playback-gap');
 	}
 
 	add(callback, period, role = 'visual') {

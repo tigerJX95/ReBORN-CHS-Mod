@@ -1,5 +1,12 @@
 # Changelog
 
+## FIX64 — 2026-10-18 (stable release)
+
+- Frozen from the FIX64 RC1 that passed final user-performed Windows regression; all 31 runtime JS files are byte-for-byte unchanged.
+- Fixed the frozen album artwork and unresponsive UI after prolonged Windows lock/unlock in immersive turntable mode, which previously required Win+D and restoring the window from the taskbar.
+- Restores repaint scheduling after focus resumes or a long callback interruption; does not modify CD rotation, AudioWizard, or SACD ISO playback handling.
+- Retains the accepted FIX63 improvements and UTF-8 BOM compatibility; refreshes bilingual release documentation and SHA-256 checksums.
+
 ## FIX63 — 2026-10-18 (stable release)
 
 - Frozen from the FIX63 RC1 release candidate that passed final Windows regression; **all 31 runtime JavaScript files remain byte-for-byte identical** to RC1 and pre8.
