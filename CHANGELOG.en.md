@@ -1,5 +1,29 @@
 # Changelog
 
+## FIX63 — 2026-10-18 (stable release)
+
+- Frozen from the FIX63 RC1 release candidate that passed final Windows regression; **all 31 runtime JavaScript files remain byte-for-byte identical** to RC1 and pre8.
+- Adds guards for stale waveform activation, album-art cycling, lyrics timeout callbacks, and delayed artwork failure notices.
+- Protects obsolete disc-image precomputation; provides rate-limited turntable recovery diagnostics; pauses translation blending while hidden and limits the resume time step.
+- Retains UTF-8 BOM compatibility and previously accepted FIX62 Details font behavior and AudioWizard handling.
+- Excludes unaccepted multi-field SACD font experiments, alternative waveform styling, and About/legal menus.
+- Refreshed bilingual documentation and integrity checks; user-performed Windows regression passed for SACD ISO switching, animations, lyrics, and localized UI.
+
+## FIX63 pre8 — 2026-10-18 (test build)
+
+- Based on the Windows-tested FIX63 pre7 UTF-8 BOM baseline.
+- Pause translation-line reveal blending when the window is hidden or has zero size; cap elapsed time on restoration to avoid abrupt visual jumps.
+- Only `scripts/Base/gr-lyrics.js` changed. Track playback, waveform AudioWizard, and disc rotation are unchanged.
+- UTF-8 BOM retained. Static checks passed; Windows testing passed.
+
+## FIX63 pre2 — 2026-10-16 (test build)
+
+- Based on the Windows-tested FIX63 pre1 baseline.
+- Added state guards for delayed album-art cycling so stale callbacks cannot advance a newer album or continue after cycling is disabled.
+- Only `scripts/Base/gr-main.js` changed in this iteration. AudioWizard, SACD ISO track-switching, and lyrics rendering were not modified.
+- Static checks passed; subsequently covered by Windows regression.
+
+
 ## FIX62 — 2026-10-15 (Stable release)
 
 - Rebuilt from the Windows-tested FIX51 stable baseline; only **three runtime JavaScript files** differ from FIX51.
@@ -28,3 +52,7 @@
 ## 2026-10-14 — Repository documentation
 
 - Organized the FIX51 repository with project documentation and third-party notices.
+
+
+## FIX63 pre7 (test)
+- Added rate-limited turntable recovery diagnostics for prolonged overload suspension; no change to animation scheduling.

@@ -2,7 +2,7 @@
 
 A personal modification project based on the Chinese-localized foobar2000 TT / Georgia-ReBORN scripts, preserving tested enhancements, fixes, and development history.
 
-**Current stable development baseline: FIX62**, rebuilt from the proven FIX51 scripts. Only the full-featured edition is maintained.
+**Current stable release: FIX63 (2026-10-18).** The final Windows regression passed; all 31 runtime JavaScript files are byte-for-byte identical to the accepted FIX63 RC1 and pre8 builds. Only the full-featured edition is maintained.
 
 ## Purpose
 
@@ -15,6 +15,13 @@ This repository provides JavaScript scripts and related resources, **not a stand
 - Custom theme/lyrics colors, interlude countdown, and 3D album CoverFlow.
 - **FIX62:** waveform request delay reduced from 1000ms to 500ms, with the stable FIX51 native waveform handling retained.
 - **FIX62:** Details font sizing up to 32px; automatic non-scrolling height fitting; hide internal playlist placeholder text without removing legitimate playlist information.
+
+## FIX63 stability improvements
+
+- Guards against stale deferred callbacks for waveform activation, album-art cycling, and lyrics loading.
+- Protects delayed artwork failure notices and obsolete disc-image precomputation.
+- Adds rate-limited turntable recovery diagnostics and pauses translation animation while the UI is hidden.
+- Preserves the compatible UTF-8 BOM markings and the previously tested FIX62 Details controls and AudioWizard behavior.
 
 ## Repository layout
 
@@ -33,7 +40,7 @@ Exit foobar2000 and back up your scripts and settings. Copy the matching scripts
 
 FIX62 is based on FIX51, **not** the previously abandoned FIX52–FIX62 experimental branch that exhibited intermittent UI freezes on SACD ISO track changes. Those historical commits can remain in Git history. Only the current scripts and formal documentation belong in this source package.
 
-FIX62 passed user-performed Windows playback regression testing, including SACD ISO track switching. Static JavaScript syntax checks are not a substitute for testing every system.
+FIX63 passed user-performed Windows regression testing, including SACD ISO track switching, window restoration, lyrics, album-art handling, and Chinese UI display. Static JavaScript syntax checks are not a substitute for testing every system.
 
 ## Attribution
 

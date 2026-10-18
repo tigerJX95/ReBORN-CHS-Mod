@@ -4621,9 +4621,7 @@ class MainUI {
 		}
 
 		if (grSet.albumArtCycle && this.albumArtList.length > 1) {
-			this.albumArtTimeout = setTimeout(() => {
-				this.displayAlbumArtImage('next', true);
-			}, grSet.albumArtCycleTime * 1000);
+			this.scheduleAlbumArtCycle();
 		}
 	}
 
@@ -4632,6 +4630,15 @@ class MainUI {
 	 * @param {string} artType - The type of art to handle ('albumArt', 'discArt', 'both').
 	 */
 	handleArtworkError(artType) {
+		// An artwork error belongs to the track active when it was detected.
+		// Do not show that track's delayed warning after playback changes.
+		const errorTrack = fb.GetNowPlaying();
+		const errorTrackPath = errorTrack ? errorTrack.RawPath : null;
+		const showArtworkErrorIfCurrent = notice => {
+			const currentTrack = fb.GetNowPlaying();
+			if ((currentTrack ? currentTrack.RawPath : null) !== errorTrackPath) return;
+			grm.msg.showPopupNotice('main', notice);
+		};
 		const handleAlbumArt = () => {
 			this.noArtwork = true;
 			this.noAlbumArtStub = true;
@@ -4640,16 +4647,12 @@ class MainUI {
 			this.albumArt = null;
 			this.albumArtSize = new ImageSize(0, this.topMenuHeight, 0, 0);
 			this.setPausePosition();
-			setTimeout(() => {
-				grm.msg.showPopupNotice('main', 'albumArtCorruptError');
-			}, 1000);
+			setTimeout(() => showArtworkErrorIfCurrent('albumArtCorruptError'), 1000);
 		};
 
 		const handleDiscArt = () => {
 			grm.details.clearCache('discArt');
-			setTimeout(() => {
-				grm.msg.showPopupNotice('main', 'discArtCorruptError');
-			}, 1000);
+			setTimeout(() => showArtworkErrorIfCurrent('discArtCorruptError'), 1000);
 		};
 
 		if (artType === 'albumArt') {
@@ -4767,6 +4770,24 @@ class MainUI {
 		});
 	}
 
+
+	/**
+	 * Schedule automatic artwork cycling only for the current artwork request.
+	 * A stale callback must never advance a newer album or a disabled cycle.
+	 */
+	scheduleAlbumArtCycle() {
+		if (this.albumArtTimeout != null) clearTimeout(this.albumArtTimeout);
+		this.albumArtTimeout = null;
+		if (this.artworkClosed || !grSet.albumArtCycle || !Array.isArray(this.albumArtList) || this.albumArtList.length < 2) return;
+
+		const requestSerial = this.albumArtRequestSerial;
+		this.albumArtTimeout = setTimeout(() => {
+			this.albumArtTimeout = null;
+			if (this.artworkClosed || !grSet.albumArtCycle || !Array.isArray(this.albumArtList) || this.albumArtList.length < 2 ||
+				requestSerial !== this.albumArtRequestSerial) return;
+			this.displayAlbumArtImage('next', true);
+		}, grSet.albumArtCycleTime * 1000);
+	}
 	/**
 	 * Displays the previous or next album artwork image when cycling through the album art list.
 	 * It can also cycle to the next image using a default 30-second interval or be triggered by the album art context menu.
@@ -4803,9 +4824,7 @@ class MainUI {
 
 		if (!timer) return;
 
-		this.albumArtTimeout = setTimeout(() => {
-			this.displayAlbumArtImage('next', true);
-		}, grSet.albumArtCycleTime * 1000);
+		this.scheduleAlbumArtCycle();
 
 		grm.button.initButtonState();
 	}
@@ -4819,9 +4838,7 @@ class MainUI {
 		this.albumArtEmbedded = false;
 
 		if (this.albumArtList.length > 1 && grSet.albumArtCycle) {
-			this.albumArtTimeout = setTimeout(() => {
-				this.displayAlbumArtImage('next', true);
-			}, grSet.albumArtCycleTime * 1000);
+			this.scheduleAlbumArtCycle();
 		}
 
 		this.albumArtIndex = 0;

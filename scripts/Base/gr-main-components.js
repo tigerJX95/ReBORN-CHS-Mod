@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////
+﻿////////////////////////////////////////////////////////////////////////
 // * Georgia-ReBORN: 一个简洁、全动态的颜色重生 - Foobar2000 播放器 * //
 // * 类型:           Georgia-ReBORN 主要组件                        * //
 // * 作者:           TT                                             * //
@@ -3178,6 +3178,8 @@ class WaveformBar {
 		this.codePageV2 = convertCharsetToCodepage('UTF-16LE');
 		/** @private @type {number} The queue identifier for the waveform bar. */
 		this.queueId = null;
+		/** @private @type {number|null} Pending UI initialization when enabling the waveform bar. */
+		this.switchInitTimer = null;
 		/** @private @type {number} The queue interval in milliseconds. */
 		// FIX62-A: Reduce the initial display wait while preserving FIX51 native analysis sequencing.
 		this.queueMs = 500;
@@ -4542,10 +4544,17 @@ class WaveformBar {
 
 		const wasActive = this.active;
 		this.active = enable;
+		// FIX63 pre1: An obsolete enable callback must not restart analysis after disable.
+		if (this.switchInitTimer !== null) {
+			clearTimeout(this.switchInitTimer);
+			this.switchInitTimer = null;
+		}
 
 		if (!wasActive && this.active) {
 			window.Repaint();
-			setTimeout(() => {
+			this.switchInitTimer = setTimeout(() => {
+				this.switchInitTimer = null;
+				if (!this.active || this.waveformClosed || grSet.seekbar !== 'waveformbar' || !fb.IsPlaying) return;
 				this.on_playback_new_track(fb.GetNowPlaying());
 				this.on_playback_time(fb.PlaybackTime);
 			}, 0);
@@ -4701,6 +4710,10 @@ class WaveformBar {
 	 * @param {number} reason - The type of playback stop.
 	 */
 	on_playback_stop(reason = -1) {
+		if (this.switchInitTimer !== null) {
+			clearTimeout(this.switchInitTimer);
+			this.switchInitTimer = null;
+		}
 		this.waveformEpoch = (this.waveformEpoch || 0) + 1;
 		this.waveformNextTrack = null;
 		clearTimeout(this.queueId);
@@ -4743,6 +4756,10 @@ class WaveformBar {
 	 * Handles the waveform bar state when reloading the theme.
 	 */
 	on_script_unload() {
+		if (this.switchInitTimer !== null) {
+			clearTimeout(this.switchInitTimer);
+			this.switchInitTimer = null;
+		}
 		this.waveformClosed = true;
 		this.waveformEpoch = (this.waveformEpoch || 0) + 1;
 		this.waveformNextTrack = null;

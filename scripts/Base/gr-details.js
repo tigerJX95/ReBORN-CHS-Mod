@@ -254,6 +254,7 @@ class Details {
 		this.turntableSuspendReason = '';
 		this.turntableRecoveryJob = null;
 		this.turntableRecoveryBackoff = 3000;
+		this.turntableRecoveryDiagnosticsAt = 0;
 		this.turntableResumedAt = 0;
 		this.turntableBuildCounts = { record: 0, chassis: 0, arm: 0, shadow: 0 };
 		// * GEOMETRY * //
@@ -895,6 +896,7 @@ class Details {
 		this.turntableRecoveryBackoff = this.turntableResumedAt && now - this.turntableResumedAt < 15000
 			? Math.min(60000, (this.turntableRecoveryBackoff || 3000) * 2) : 3000;
 		this.turntableRecoverAfter = now + this.turntableRecoveryBackoff;
+		this.turntableRecoveryDiagnosticsAt = now;
 		this.turntableHealthySince = 0;
 		this.turntableHealthyPaints = 0;
 		this.startTurntableRecovery();
@@ -915,6 +917,13 @@ class Details {
 			if (window.IsVisible === false || grAnimationManager.resizing || !fb.IsPlaying || fb.IsPaused) {
 				this.turntableHealthySince = 0; this.turntableHealthyPaints = 0;
 				return 1000;
+			}
+			// Diagnostic only: a prolonged suspended state needs evidence before changing
+			// the rotation/recovery algorithm. Log at most once every 15 seconds.
+			if (now >= this.turntableRecoverAfter + 10000 &&
+				now - this.turntableRecoveryDiagnosticsAt >= 15000) {
+				this.turntableRecoveryDiagnosticsAt = now;
+				console.log(`FIX63 pre7 唱机恢复观察 | 原因 ${this.turntableSuspendReason || '未知'} | 健康帧 ${this.turntableHealthyPaints || 0} | 冷却剩余 ${Math.max(0, Math.round(this.turntableRecoverAfter - now))}ms | 最近绘制 ${Math.round(now - (this.turntableLastPaintAt || now))}ms | 绘制平均 ${Math.round(grAnimationManager.paintAverage || 0)}ms | 压力 ${grAnimationManager.paintPressure || 0}ms | 转盘任务 ${this.turntableJob != null && grAnimationManager.jobs.has(this.turntableJob)} | 恢复任务 ${this.turntableRecoveryJob != null && grAnimationManager.jobs.has(this.turntableRecoveryJob)}`);
 			}
 			const recoveryDelay = this.getTurntableRecoveryDelay();
 			const healthyCost = Math.min(100, recoveryDelay * 0.75);
@@ -4919,10 +4928,14 @@ class Details {
 			const loadToken = this.discArtLoadToken;
 			this.discArtDeferredStartTimer = setTimeout(() => {
 				this.discArtDeferredStartTimer = null;
-				if (loadToken === this.discArtLoadToken && grm.ui.displayDetails) {
-					const step = 360 / Math.max(1, grSet.spinDiscArtImageCount);
-					this.setDiscArtPrecomputation(this.combineDiscArtWithCover(false), this.discArt.Path, step);
-				}
+				// A deferred bitmap job must not outlive the playback/view state that queued it.
+				if (loadToken !== this.discArtLoadToken || !grm.ui.displayDetails ||
+					grSet.layout !== 'default' || !grSet.displayDiscArt || !grSet.spinDiscArt ||
+					!fb.IsPlaying || fb.IsPaused || grAnimationManager.resizing ||
+					grm.ui.albumArtCorrupt || !grm.ui.albumArt || !this.discArt ||
+					!this.discArtSize.w || this.isTurntableActive()) return;
+				const step = 360 / Math.max(1, grSet.spinDiscArtImageCount);
+				this.setDiscArtPrecomputation(this.combineDiscArtWithCover(false), this.discArt.Path, step);
 			}, this.discArtDeferredStartDelay);
 			return;
 		}

@@ -417,8 +417,11 @@ class Lyrics {
 		this.saveLyrics(fb.GetNowPlaying());
 
 		clearTimeout(this.searchTimeout);
+		const searchEpoch = this.lyricLoadEpoch || 0;
 
 		this.searchTimeout = setTimeout(() => {
+			this.searchTimeout = null;
+			if (this.lyricsClosed || searchEpoch !== (this.lyricLoadEpoch || 0)) return;
 			this.lyricsSearching = false;
 			this.lyricsSaveCommandSent = false;
 			clearInterval(this.lyricsSearchTimer);
@@ -430,6 +433,7 @@ class Lyrics {
 					this.arcNoLyricsNoticeUntil = Date.now() + 3000;
 					this.arcNoLyricsNoticeTimer = setTimeout(() => {
 						this.arcNoLyricsNoticeTimer = null;
+						if (this.lyricsClosed || searchEpoch !== (this.lyricLoadEpoch || 0)) return;
 						if (this.lyr === this.stringNotFound && grm.ui.displayDetails &&
 							(grSet.detailsLyricsDisplayMode === 'arc' && !grm.details.isTurntableActive())) window.Repaint();
 					}, 3000);
@@ -6258,7 +6262,13 @@ class Lyrics {
 
 		let lastTick = grAnimationManager.now();
 		this.translationBlendTimer = grAnimationManager.add(now => {
-			const delta = Math.max(0, now - lastTick);
+			// A minimized panel must not consume visual-animation ticks.
+			// Reset the timestamp so restoring does not replay hidden time.
+			if (window.IsVisible === false || window.Width <= 0 || window.Height <= 0) {
+				lastTick = now;
+				return 250;
+			}
+			const delta = Math.max(0, Math.min(100, now - lastTick));
 			lastTick = now;
 			this.translationUpdateSyncBlend(delta);
 
