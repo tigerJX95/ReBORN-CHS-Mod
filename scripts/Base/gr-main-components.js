@@ -256,6 +256,35 @@ class ArtCache {
 	}
 
 	/**
+	 * Estimates the native RGBA bitmap storage retained by the artwork caches.
+	 * Unlike source-file sizes, this includes generated/embedded bitmaps and
+	 * reflects the dimensions of resized GDI+ images held by each pool.
+	 * This is an estimate (4 bytes per pixel), not process memory usage.
+	 * @param {number} cacheIndex - 0 for all pools, otherwise 1, 2 or 3.
+	 * @returns {{count: number, pixels: number, bytes: number}}
+	 */
+	getBitmapCacheUsage(cacheIndex = 0) {
+		const pools = cacheIndex === 0 ? [this.cache, this.cache2, this.cache3] :
+			[this.getCachePool(cacheIndex).cache];
+		let count = 0;
+		let pixels = 0;
+		for (const pool of pools) {
+			for (const entry of Object.values(pool)) {
+				if (!entry || !entry.image) continue;
+				// Native GDI+ objects may become invalid before an optional diagnostic runs.
+				// Never let statistics prevent ArtCache.clear() from releasing references.
+				try {
+					const { Width: w, Height: h } = entry.image;
+					if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) continue;
+					count++;
+					pixels += w * h;
+				} catch (e) { /* Skip an inaccessible native bitmap in diagnostics. */ }
+			}
+		}
+		return { count, pixels, bytes: pixels * 4 };
+	}
+
+	/**
 	 * Sets the maximum resolution for disc art based on the spinDiscArtImageCount.
 	 * @param {number} spinDiscArtImageCount - The count for spinning disc art images.
 	 * @returns {number} The maximum resolution for the disc art image.
@@ -335,15 +364,22 @@ class ArtCache {
 	 */
 	clear() {
 		if (grCfg.settings.showDebugLog) {
-			grm.debug.debugLog(`封面缓存 => 缓存 1 缓存总计大小: ${this.getTotalCacheSize(1, false)}`);
-			grm.debug.debugLog(`封面缓存 => 缓存 2 缓存总计大小: ${this.getTotalCacheSize(2, false)}`);
-			grm.debug.debugLog(`封面缓存 => 缓存 3 缓存总计大小: ${this.getTotalCacheSize(3, false)}`);
-			grm.debug.debugLog(`封面缓存 => 已清除 缓存总计大小: ${this.getTotalCacheSize(0, false)}`);
+			// Debug output is best-effort: even a failed logger must not block cleanup.
+			try {
+				const usage = this.getBitmapCacheUsage();
+				grm.debug.debugLog(`封面缓存 => 当前缓存位图估算: ${usage.count} 张, ${FormatSize(usage.bytes)} (${usage.pixels} 像素; 不含 GDI+ 额外开销)`);
+				grm.debug.debugLog(`封面缓存 => 缓存 1 缓存总计大小: ${this.getTotalCacheSize(1, false)}`);
+				grm.debug.debugLog(`封面缓存 => 缓存 2 缓存总计大小: ${this.getTotalCacheSize(2, false)}`);
+				grm.debug.debugLog(`封面缓存 => 缓存 3 缓存总计大小: ${this.getTotalCacheSize(3, false)}`);
+				grm.debug.debugLog(`封面缓存 => 已清除 缓存总计大小: ${this.getTotalCacheSize(0, false)}`);
+			} catch (e) { /* Continue clearing all pools even if diagnostics fail. */ }
 		}
 
 		const clearCache = (cacheIndexes, cache) => {
-			for (const index of cacheIndexes) {
-				delete cache[index];
+			// Clear the actual cache store, not only keys recorded in the LRU list.
+			// This also releases entries if an earlier operation left the indexes out of sync.
+			for (const key of Object.keys(cache)) {
+				delete cache[key];
 			}
 			cacheIndexes.length = 0;
 		};
@@ -4671,12 +4707,47 @@ class WaveformBar {
 		await this.waveformJob;
 	}
 
+	/**
+	 * FIX65.1 pre2: In album Details mode, let the CD eject finish before
+	 * starting the next waveform (cache reads and native analysis alike).
+	 * Do not touch AudioWizard lifecycle or the established debounce.
+	 */
+	async waitForAlbumDiscEject(epoch) {
+		if (!grm.ui || !grm.ui.displayDetails || !grSet.discArtAnimation ||
+			!grm.details || grm.details.isTurntableActive()) return true;
+		const details = grm.details;
+		const started = Date.now();
+		let waitedForEject = false;
+		// A completed slide can immediately be followed by another track-entry
+		// request. Do not launch waveform work during that same animation tick.
+		while (details.isDiscArtTransitionActive()) {
+			waitedForEject = true;
+			if (epoch !== this.waveformEpoch || this.waveformClosed ||
+				grSet.seekbar !== 'waveformbar' || !this.active) return false;
+			if (!grm.ui.displayDetails || details.isTurntableActive() ||
+				!grSet.discArtAnimation || Date.now() - started > 3500) break;
+			await new Promise(resolve => setTimeout(resolve, 32));
+		}
+		if (waitedForEject && Date.now() - started <= 3500 &&
+			grm.ui.displayDetails && grSet.discArtAnimation && !details.isTurntableActive()) {
+			// Yield once so the settled disc frame can paint before waveform work.
+			await new Promise(resolve => setTimeout(resolve, 0));
+			// If another entry was armed meanwhile, defer this track instead of
+			// competing with the newly started disc transition.
+			if (details.isDiscArtTransitionActive() && epoch === this.waveformEpoch)
+				return this.waitForAlbumDiscEject(epoch);
+		}
+		return epoch === this.waveformEpoch && !this.waveformClosed &&
+			grSet.seekbar === 'waveformbar' && this.active;
+	}
+
 	async drainWaveformTracks() {
 		try {
 			while (this.waveformNextTrack && !this.waveformClosed) {
 				const { handle, isRetry, epoch } = this.waveformNextTrack;
 				this.waveformNextTrack = null;
 				if (epoch !== this.waveformEpoch || grSet.seekbar !== 'waveformbar' || !this.active) continue;
+				if (!await this.waitForAlbumDiscEject(epoch)) continue;
 				this.reset(); this.checkAllowedFile(handle);
 				await this.analyzeDataStart(handle, isRetry, epoch);
 				if (epoch !== this.waveformEpoch || this.waveformClosed) continue;

@@ -4301,8 +4301,22 @@ class Lyrics {
 					}
 				});
 				if (key && bitmap) {
-					if (this.circularArcSentenceCache.size >= 32) this.circularArcSentenceCache.delete(this.circularArcSentenceCache.keys().next().value);
-					this.circularArcSentenceCache.set(key, bitmap);
+					// Limit retained GDI bitmaps by both count and pixel area. A few large
+					// sentences can otherwise use more memory than many short ones.
+					const maxPixels = 4000000;
+					const imagePixels = bitmap.Width * bitmap.Height;
+					if (imagePixels <= maxPixels) {
+						this.circularArcSentenceCache.delete(key);
+						this.circularArcSentenceCache.set(key, bitmap);
+						let totalPixels = 0;
+						for (const image of this.circularArcSentenceCache.values()) totalPixels += image.Width * image.Height;
+						while (this.circularArcSentenceCache.size > 32 || totalPixels > maxPixels) {
+							const oldest = this.circularArcSentenceCache.keys().next().value;
+							const removed = this.circularArcSentenceCache.get(oldest);
+							totalPixels -= removed.Width * removed.Height;
+							this.circularArcSentenceCache.delete(oldest);
+						}
+					}
 				}
 			}
 		} finally { Object.assign(this, old); }

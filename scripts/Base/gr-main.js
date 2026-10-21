@@ -1000,17 +1000,19 @@ class MainUI {
 			return;
 		}
 		if (!this.displayDetails || !this.displayLyrics || !fb.IsPlaying || !grm.lyrics) {
-			// The ordinary cover remains untouched whenever lyrics are hidden.
-			this.immersiveLyricsBlurredCover = null;
-			this.immersiveLyricsBlurSource = null;
+			// Invalidate both the derived bitmap and any queued blur preparation.
+			if (this.immersiveLyricsBlurredCover || this.immersiveLyricsBlurSource || this.immersiveLyricsBlurScheduled) {
+				this.clearImmersiveLyricsBlur();
+			}
 			return;
 		}
 
 		// PRE42 experimental arc mode: immersive hides all label/company logos, so the
 		// lyric rail can use the complete outer semicircle without cover blur or a logo safe zone.
 		if (grSet.detailsLyricsDisplayMode === 'arc') {
-			this.immersiveLyricsBlurredCover = null;
-			this.immersiveLyricsBlurSource = null;
+			if (this.immersiveLyricsBlurredCover || this.immersiveLyricsBlurSource || this.immersiveLyricsBlurScheduled) {
+				this.clearImmersiveLyricsBlur();
+			}
 			grm.lyrics.drawLyrics(gr);
 			return;
 		}

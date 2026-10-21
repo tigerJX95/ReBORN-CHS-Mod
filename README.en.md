@@ -1,53 +1,47 @@
-# TT Modified Scripts — ReBORN-CHS-Mod
+# ReBORN-CHS-Mod
 
-A personal modification project based on the Chinese-localized foobar2000 TT / Georgia-ReBORN scripts, preserving tested enhancements, fixes, and development history.
+An unofficial modification of Chinese-localized TT / Georgia-ReBORN scripts for foobar2000, including JavaScript source code and associated resources. This project does not include the foobar2000 player.
 
-**Current stable release: FIX64 (2026-10-18).** Final user-performed Windows regression passed; all 31 runtime JavaScript files are byte-for-byte identical to the accepted FIX64 RC1.
+**Current release: FIX65 (2026-10-21)**
 
-## Purpose
+## Features
 
-This repository provides JavaScript scripts and related resources, **not a standalone foobar2000 installation**. A compatible foobar2000, JSplitter and TT / Georgia-ReBORN environment is required.
+- Turntable mode, CD animation, immersive display, and window-state recovery improvements.
+- Scrolling Details lyrics, CD-arc lyrics, word-by-word highlighting, and vertical Chinese lyrics.
+- Custom lyrics colors, gradient masks, interlude countdown, and 3D album CoverFlow.
+- Waveform progress display, adaptive Details typography, album artwork, and metadata display.
 
-## Key features
+## What's new in FIX65
 
-- Turntable and CD animation, immersive display, and related state-recovery fixes.
-- Scrolling lyrics, CD-arc lyrics, karaoke word highlighting, vertical Chinese layouts, and configurable masks.
-- Custom theme/lyrics colors, interlude countdown, and 3D album CoverFlow.
-- **FIX62:** waveform request delay reduced from 1000ms to 500ms, with the stable FIX51 native waveform handling retained.
-- **FIX62:** Details font sizing up to 32px; automatic non-scrolling height fitting; hide internal playlist placeholder text without removing legitimate playlist information.
+- Bound the full-line arc-lyrics bitmap cache to 32 entries and 4 million aggregate pixels, excluding oversized bitmaps from long-term retention.
+- Improved blurred artwork cache cleanup when immersive lyrics are changed or hidden.
+- Improved clearing of all three ArtCache stores and their LRU indices, with safeguards for invalid bitmap entries and approximate cache diagnostics.
+- **In album mode, complete CD disc-eject animation before loading waveform cache data or initiating waveform analysis**, reducing concurrent work during the animation.
+- Yield one UI event-loop turn after disc eject; guard against obsolete track requests on rapid switching and use a bounded wait fallback.
+- Preserve native AudioWizard handling, 500 ms waveform debounce, SACD ISO behavior, and UTF-8 BOM compatibility.
 
-## FIX64 (stable release)
+See [CHANGELOG.en.md](CHANGELOG.en.md) for release history.
 
-- Frozen from the user-accepted FIX64 RC1, with no changes to the 31 runtime JavaScript files.
-- Fixed the frozen album artwork and unresponsive UI after prolonged Windows lock/unlock in immersive turntable mode, which previously required Win+D and restoring from the taskbar.
-- Retains FIX63 stability improvements and UTF-8 BOM compatibility.
+## Repository contents
 
-## FIX63 stability improvements
-
-- Guards against stale deferred callbacks for waveform activation, album-art cycling, and lyrics loading.
-- Protects delayed artwork failure notices and obsolete disc-image precomputation.
-- Adds rate-limited turntable recovery diagnostics and pauses translation animation while the UI is hidden.
-- Preserves the compatible UTF-8 BOM markings and the previously tested FIX62 Details controls and AudioWizard behavior.
-
-## Repository layout
-
-- `scripts/Base/` — main UI, Details, lyrics, menus and settings
-- `scripts/Biography/scripts/` — related biography script changes
-- `scripts/Library/` — library script and resources
-- `CHANGELOG.md` / `CHANGELOG.en.md` — version history
-- `THIRD_PARTY_NOTICES.md` — third-party attribution and licenses
-- `SHA256SUMS` — file integrity checksums
+| Path | Description |
+| --- | --- |
+| `scripts/Base/` | Main UI, Details, lyrics, menus, and settings |
+| `scripts/Biography/scripts/` | Biography scripts |
+| `scripts/Library/` | Library scripts and resources |
+| `docs/安装与使用.md` | Installation and usage instructions (Chinese) |
+| `CHANGELOG.md` / `CHANGELOG.en.md` | Release history |
+| `SHA256SUMS.txt` | SHA-256 file checksums |
+| `THIRD_PARTY_NOTICES.md` | Third-party attribution and license notices |
 
 ## Installation
 
-Exit foobar2000 and back up your scripts and settings. Copy the matching scripts to your existing profile, retaining any other upstream files. Do not replace the entire player configuration blindly.
+Use with an existing compatible foobar2000, JSplitter, and TT / Georgia-ReBORN environment. This repository is not a complete player or theme-base distribution.
 
-## Development and version policy
-
-FIX62 is based on FIX51, **not** the previously abandoned FIX52–FIX62 experimental branch that exhibited intermittent UI freezes on SACD ISO track changes. Those historical commits can remain in Git history. Only the current scripts and formal documentation belong in this source package.
-
-FIX64 passed user-performed Windows regression testing, including SACD ISO track switching, window restoration, lyrics, album-art handling, and Chinese UI display. Static JavaScript syntax checks are not a substitute for testing every system.
+Exit foobar2000, back up existing scripts and personal settings, and replace the matching files at their relative paths. Keep other upstream files already present in your installation.
 
 ## Attribution
 
-Thanks to the TT / Georgia-ReBORN contributors, foobar2000 and its component developers, the Chinese localization contributors, Gemini and ChatGPT for assistance in development and documentation. This is an unofficial personal fork; retain upstream attribution and applicable third-party notices.
+Thanks to [TT / Georgia-ReBORN](https://github.com/TT-ReBORN/Georgia-ReBORN), the foobar2000 and component developers, Chinese localization contributors, and Gemini and ChatGPT for code and documentation assistance.
+
+This is an unofficial personal modification. Please retain upstream attribution and applicable license notices; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
