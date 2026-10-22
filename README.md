@@ -1,3 +1,5 @@
+**简体中文** | [English](./README.en.md)
+
 # ReBORN-CHS-Mod
 
 基于 TT / Georgia-ReBORN 的 foobar2000 中文主题脚本修改项目，提供 JavaScript 源码及配套资源。项目不是独立播放器，也不包含 foobar2000 本体。
