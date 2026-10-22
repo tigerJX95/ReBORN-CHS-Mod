@@ -22,6 +22,24 @@ An unofficial modification of Chinese-localized TT / Georgia-ReBORN scripts for 
 
 See [CHANGELOG.en.md](CHANGELOG.en.md) for release history.
 
+## Demo Video
+- Disc transition animations (ejecting and inserting a disc)
+
+  https://github.com/user-attachments/assets/76316d03-1e34-4b1a-be36-9f69b7450a86
+
+- Phonograph mode and vertically-oriented Chinese lyrics
+
+  https://github.com/user-attachments/assets/bfcd45c8-4176-4456-95be-82a1e13f295c
+
+- Display of artists from various countries/regions on detail pages and the bottom bar; immersive (scrolling) lyrics; line-by-line, word-for-word lyric translation.
+
+  https://github.com/user-attachments/assets/1951a8d4-71a5-4c5a-9018-23738d2de0c8
+
+- Immersive Mode
+
+  https://github.com/user-attachments/assets/c6531c96-d3a2-49b1-b22c-5a9584a5285e
+  
+
 ## Repository contents
 
 | Path | Description |
