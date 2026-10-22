@@ -1,3 +1,5 @@
+[简体中文](./README.md) | **English**
+
 # ReBORN-CHS-Mod
 
 An unofficial modification of Chinese-localized TT / Georgia-ReBORN scripts for foobar2000, including JavaScript source code and associated resources. This project does not include the foobar2000 player.
