@@ -22,6 +22,37 @@
 
 各版本详细变更见 [CHANGELOG.md](CHANGELOG.md)。
 
+## 演示
+- 碟片过渡动画（出碟和收蝶）
+  
+
+https://github.com/user-attachments/assets/76316d03-1e34-4b1a-be36-9f69b7450a86
+
+
+- 唱机模式和中文竖排歌词
+
+
+https://github.com/user-attachments/assets/bfcd45c8-4176-4456-95be-82a1e13f295c
+
+
+- 详情页和底栏多国籍/地区艺术家显示、环绕歌词、逐字歌词翻译行逐字
+
+
+https://github.com/user-attachments/assets/1951a8d4-71a5-4c5a-9018-23738d2de0c8
+
+
+- 沉浸模式
+  
+
+https://github.com/user-attachments/assets/c6531c96-d3a2-49b1-b22c-5a9584a5285e
+
+
+
+
+
+
+
+
 ## 目录
 
 | 路径 | 内容 |
