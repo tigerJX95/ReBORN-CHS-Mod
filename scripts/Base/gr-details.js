@@ -1144,7 +1144,7 @@ class Details {
 			g.FillEllipse(1, 1, size - 2, size - 2, RGB(18, 19, 21));
 			if (source) {
 				const crop = Math.min(source.Width, source.Height);
-				g.DrawImage(source, size * 0.025, size * 0.025, size * 0.95, size * 0.95,
+				g.DrawImage(source, 0, 0, size, size,
 					(source.Width - crop) / 2, (source.Height - crop) / 2, crop, crop);
 			} else {
 				for (let r = 0.1; r < 0.46; r += 0.014) g.DrawEllipse(size * r, size * r, size * (1 - 2 * r), size * (1 - 2 * r), 1, RGB(38, 39, 42));
@@ -2306,7 +2306,8 @@ class Details {
 	getLabelVisibleBounds(name, logo) {
 		if (logo.Width === 400 && logo.Height === 270) {
 			const label = String(name).trim().toLowerCase();
-			if (label === 'rca') return { x: 64, y: 0, w: 271, h: 270 };
+			// RCA source artwork can vary; do not crop its left/right edges by fixed pixels.
+			if (label === 'rca') return { x: 0, y: 0, w: logo.Width, h: logo.Height };
 			if (label === 'sony music latin') return { x: 0, y: 104, w: 400, h: 62 };
 		}
 		return { x: 0, y: 0, w: logo.Width, h: logo.Height };

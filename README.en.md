@@ -1,10 +1,14 @@
+**Current release: FIX66 (2026-10-24)**
+
+Includes validated turntable coverage, RCA logo cropping, custom-theme and CD eject fixes. The validated custom-theme script is now integrated at `scripts/Base/gr-menu-custom.js` alongside the other scripts. See `docs/FIX66_整合与回归说明.md`.
+
 [简体中文](./README.md) | **English**
 
 # ReBORN-CHS-Mod
 
 An unofficial modification of Chinese-localized TT / Georgia-ReBORN scripts for foobar2000, including JavaScript source code and associated resources. This project does not include the foobar2000 player.
 
-**Current release: FIX65 (2026-10-21)**
+**Current release: FIX66 (2026-10-23)**
 
 ## Features
 
@@ -12,6 +16,11 @@ An unofficial modification of Chinese-localized TT / Georgia-ReBORN scripts for 
 - Scrolling Details lyrics, CD-arc lyrics, word-by-word highlighting, and vertical Chinese lyrics.
 - Custom lyrics colors, gradient masks, interlude countdown, and 3D album CoverFlow.
 - Waveform progress display, adaptive Details typography, album artwork, and metadata display.
+
+## What's new in FIX66
+
+- Keep one absolute 3.5-second deadline across repeated CD eject transitions before waveform work begins.
+- Preserve all existing FIX65 optimizations.
 
 ## What's new in FIX65
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## FIX66 — 2026-10-24 (integrated validated fixes)
+
+- Expand turntable artwork coverage from 95% to 100%, eliminating dark edge gaps (validated isolation-test variant B).
+- Remove the fixed crop for the RCA label logo; preserve the full image bounds.
+- Include the validated custom-theme input null guard to prevent red-screen crashes.
+- Restore FIX65 CD eject scheduling; withdraw the older continuous-loop change.
+- Preserve FIX65 image cache, 500 ms waveform debounce, AudioWizard and SACD ISO behavior.
+- Keep the custom-theme script separately deployable at its actual loading path.
+
 ## FIX65 — 2026-10-21
 
 - Bound the full-line arc-lyrics bitmap cache to 32 entries and 4 million total pixels, without retaining oversized bitmaps.
