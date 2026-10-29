@@ -6,7 +6,7 @@
 
 The main-script headers identify TT as the author and <https://github.com/TT-ReBORN/Georgia-ReBORN> as the source. Original headers and author information are retained. This repository contains modifications of existing scripts; the entire codebase must not be attributed to the modifier as original work.
 
-The FIX51 source does not include the complete main-project license file. No new root license has been created to cover all content. Before making the repository public, obtain the applicable license text and requirements from the matching player setup or upstream source.
+The root `LICENSE` grants MIT rights **only** to original modifications, patches and documentation contributions that this project’s contributors own and have authority to license. It does not relicense TT / Georgia-ReBORN upstream code. The full upstream main-project license has not been verified from this package; verify the applicable rights and requirements before redistributing third-party code.
 
 ## Library Tree
 

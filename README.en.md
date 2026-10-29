@@ -8,8 +8,6 @@ Includes validated turntable coverage, RCA logo cropping, custom-theme and CD ej
 
 An unofficial modification of Chinese-localized TT / Georgia-ReBORN scripts for foobar2000, including JavaScript source code and associated resources. This project does not include the foobar2000 player.
 
-**Current release: FIX66 (2026-10-23)**
-
 ## Features
 
 - Turntable mode, CD animation, immersive display, and window-state recovery improvements.
@@ -74,3 +72,7 @@ Exit foobar2000, back up existing scripts and personal settings, and replace the
 Thanks to [TT / Georgia-ReBORN](https://github.com/TT-ReBORN/Georgia-ReBORN), the foobar2000 and component developers, Chinese localization contributors, and Gemini and ChatGPT for code and documentation assistance.
 
 This is an unofficial personal modification. Please retain upstream attribution and applicable license notices; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## License
+
+Original modifications, patches, and documentation contributions **owned and licensable by this project’s contributors** are offered under the [MIT License](LICENSE). This does **not** relicense Georgia-ReBORN, Library Tree, Biography, or third-party images, fonts, and other pre-existing materials. Their applicable rights and licenses remain with their respective owners. See [third-party notices](THIRD_PARTY_NOTICES.en.md). Redistribution must comply with the relevant upstream license and attribution obligations.

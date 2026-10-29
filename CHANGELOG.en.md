@@ -1,3 +1,9 @@
+## FIX66 · Licensing and documentation update (no runtime changes)
+
+- Add root `LICENSE` (MIT) for licensable original contributions of this project.
+- Align both READMEs, third-party notices and file lists; pre-existing third-party content is not relicensed.
+- Leave all runtime files in `scripts/` unchanged.
+
 # Changelog
 
 ## FIX66 — 2026-10-24 (integrated validated fixes)

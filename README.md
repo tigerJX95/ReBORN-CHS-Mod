@@ -77,6 +77,7 @@ https://github.com/user-attachments/assets/c6531c96-d3a2-49b1-b22c-5a9584a5285e
 | `CHANGELOG.md` / `CHANGELOG.en.md` | 中英文版本更新记录 |
 | `SHA256SUMS.txt` | 文件 SHA-256 校验清单 |
 | `THIRD_PARTY_NOTICES.md` | 第三方来源、署名和许可证说明 |
+| `LICENSE` | 本项目原创贡献的 MIT 许可证 |
 
 ## 安装与使用
 
@@ -89,3 +90,7 @@ https://github.com/user-attachments/assets/c6531c96-d3a2-49b1-b22c-5a9584a5285e
 感谢 [TT / Georgia-ReBORN](https://github.com/TT-ReBORN/Georgia-ReBORN)、foobar2000 及其组件作者、中文本地化相关贡献者，以及参与代码与文档协作的 Gemini 和 ChatGPT。
 
 本项目为非官方个人修改版本，不代表原作者的官方发行。请保留上游署名和相关许可证要求，具体参见 [第三方说明](THIRD_PARTY_NOTICES.md)。
+
+## 开源许可证
+
+本项目贡献者拥有版权且有权授权的**原创修改、补丁和文档贡献**采用 [MIT License](LICENSE)。这并不将 Georgia-ReBORN、Library Tree、Biography 或第三方图片、字体等既有内容重新授权为 MIT。其版权和适用许可由各自权利人决定，详见 [第三方来源与许可证说明](THIRD_PARTY_NOTICES.md)。使用、修改和再发布时请同时遵守相关上游许可及署名要求。

@@ -2,14 +2,14 @@
 
 [简体中文](../文件清单.md) | **English**
 
-The current script version is FIX52; the stable baseline is FIX51. Source paths correspond to relative paths in the runtime setup; `scripts/` is the repository's source directory.
+The current script release is FIX66. Source paths correspond to relative paths in the runtime setup; `scripts/` is the repository's source directory.
 
 | Category | JavaScript files |
 | --- | --- |
-| Base | 11 |
+| Base | 12 |
 | Biography/scripts | 2 |
 | Library (entry point and scripts) | 18 |
-| Total | 31 |
+| Total | 32 |
 
 ## JavaScript files
 
@@ -21,6 +21,7 @@ The current script version is FIX52; the stable baseline is FIX51. Source paths 
 - `scripts/Base/gr-lyrics.js`
 - `scripts/Base/gr-main-components.js`
 - `scripts/Base/gr-main.js`
+- `scripts/Base/gr-menu-custom.js`
 - `scripts/Base/gr-menu-context.js`
 - `scripts/Base/gr-menu.js`
 - `scripts/Base/gr-settings.js`
@@ -44,6 +45,8 @@ The current script version is FIX52; the stable baseline is FIX51. Source paths 
 - `scripts/Library/scripts/lib-search.js`
 - `scripts/Library/scripts/lib-timers.js`
 - `scripts/Library/scripts/lib-utils.js`
+
+Root `LICENSE` applies to original contributions this project has the right to license. Third-party materials are addressed in `THIRD_PARTY_NOTICES.md` and `THIRD_PARTY_NOTICES.en.md`.
 
 ## Resources and checksums
 
