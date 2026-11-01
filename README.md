@@ -31,7 +31,8 @@
 - 碟片过渡动画（出碟和收蝶）
   
 
-https://github.com/user-attachments/assets/76316d03-1e34-4b1a-be36-9f69b7450a86
+https://github.com/user-attachments/assets/8b64b629-7d0c-48e3-8da0-e2b09481cefa
+
 
 
 - 唱机模式和中文竖排歌词
