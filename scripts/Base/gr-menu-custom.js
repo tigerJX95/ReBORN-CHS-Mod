@@ -330,7 +330,7 @@ class CustomMenuDropDown extends CustomMenu {
 		/** @private @type {string[]} */
 		this.labelArray = labelArray;
 		/** @private @type {number} */
-		this.activeIndex = activeIndex || -1;
+		this.activeIndex = Number.isInteger(activeIndex) && activeIndex >= 0 && activeIndex < labelArray.length ? activeIndex : -1;
 		/** @private @constant @type {number} The padding between top and label and option and bottom line. */
 		this.padding = SCALE(5);
 
@@ -591,6 +591,13 @@ class CustomMenuDropDown extends CustomMenu {
 		if (this.selectUp) { // Made a selection
 			const optionH = this.optionHeight + this.padding * 2;
 			const yIndex = y - this.getFirstOptionY();
+			// A click on the header or outside the options closes without changing selection.
+			if (!Number.isFinite(yIndex) || yIndex < 0 || yIndex >= this.selectUpHeight) {
+				this.activeIndex = this.selectUpActiveIndex;
+				this.selectUp = false;
+				window.Repaint();
+				return;
+			}
 			this.activeIndex = Math.floor(yIndex / optionH);
 		}
 		this.selectUp = !this.selectUp;

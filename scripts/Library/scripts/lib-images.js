@@ -665,6 +665,7 @@ class LibImages {
 		clearTimeout(this.flowIdleTimer);
 		this.flowIdleTimer = null;
 		this.flowIdleArmed = false;
+		this.flowIdleCompleted = false;
 	}
 
 	noteFlowActivity() {
@@ -680,7 +681,7 @@ class LibImages {
 	}
 
 	armFlowIdle() {
-		if (this.flowIdleArmed || !this.isFlowActive() || !fb.IsPlaying) return;
+		if (this.flowIdleArmed || this.flowIdleCompleted || !this.isFlowActive() || !fb.IsPlaying) return;
 		const seconds = this.flowSetting('flowIdleSeconds', 5, 0, 30);
 		if (!seconds) return;
 		this.flowIdleArmed = true;
@@ -697,6 +698,10 @@ class LibImages {
 				this.armFlowIdle();
 				return;
 			}
+			// Complete exactly once per idle interval. Normal paints must not
+			// re-arm an expired timer until a new user interaction occurs.
+			this.flowIdleArmed = false;
+			this.flowIdleCompleted = true;
 			this.returnFlowToNowPlaying();
 		}, delay);
 	}
@@ -1344,6 +1349,8 @@ class LibImages {
 		if (!this.flowLastImages) this.flowLastImages = new Map();
 		const retained = this.flowLastImages;
 		if (image && Number.isFinite(image.Width) && Number.isFinite(image.Height)) {
+			// Frequent repaints should not rebuild the small LRU/pixel budget for an unchanged cover.
+			if (retained.get(key) === image && [...retained.keys()].pop() === key) return image;
 			retained.delete(key);
 			retained.set(key, image);
 			let pixels = 0;
@@ -1362,6 +1369,11 @@ class LibImages {
 			retained.set(key, previous);
 		}
 		return previous;
+	}
+
+	/** A library filter/rebuild may replace the index while an image decoder is running. */
+	isFlowRequestCurrent(request) {
+		return lib.pop.tree[request.ix]?.key === request.key && request.epoch === (this.imageEpoch || 0);
 	}
 
 	/** Flow loads the current visible range first; repaint cannot replace a live queue. */
@@ -1451,14 +1463,15 @@ class LibImages {
 				catch (e) { image = null; }
 			}
 			if (!image) {
-				if (!this.isImageViewVisible() || this.flowLoads.get(key) !== request) return;
+				if (!this.isImageViewVisible() || this.flowLoads.get(key) !== request || !this.isFlowRequestCurrent(request)) return;
 				const result = await utils.GetAlbumArtAsyncV2(0, request.handle, request.artId, false);
 				image = result?.image;
 				missing = !image;
 				if (image && result.path) saveName = `${libMD5.hashStr(result.path)}.jpg`;
 			}
 			const currentContext = `${libSet.artId}|${this.style.image}|${libSet.albumArtLabelType}|${this.cacheFolder}`;
-			if (this.flowLoads.get(key) !== request || this.flowImageContext !== currentContext || currentContext !== request.context) return;
+			if (this.flowLoads.get(key) !== request || this.flowImageContext !== currentContext ||
+				currentContext !== request.context || !this.isFlowRequestCurrent(request)) return;
 			if (image) {
 				this.cacheIt(image, key, ix, saveName);
 				if (this.getFlowImg(key)) return;
@@ -1470,7 +1483,7 @@ class LibImages {
 			release();
 			const currentContext = `${libSet.artId}|${this.style.image}|${libSet.albumArtLabelType}|${this.cacheFolder}`;
 			if (this.flowLoads.get(key) === request) {
-				if (this.flowImageContext === currentContext && currentContext === request.context) {
+				if (this.flowImageContext === currentContext && currentContext === request.context && this.isFlowRequestCurrent(request)) {
 					const current = this.getImg(key);
 					if (!current || current === 'called') {
 						const failures = request.failures + 1;
@@ -1481,6 +1494,8 @@ class LibImages {
 							flowRetryAt: Date.now() + Math.min(10000, failures * 1500) };
 					}
 				}
+				// Discard the stale pending sentinel; never assign a retry/no-art state to a different album.
+				if (!this.isFlowRequestCurrent(request) && this.cache[key]?.img === 'called') delete this.cache[key];
 				this.flowLoads.delete(key);
 				if (this.isImageViewVisible()) lib.panel.treePaint();
 				this.getFlowImages();

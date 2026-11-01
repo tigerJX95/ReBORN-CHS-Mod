@@ -1987,6 +1987,11 @@ class LibPopulate {
 	}
 
 	on_key_down(vkey) {
+		// Flow navigation must not dereference a missing tree item while search/filter results are empty.
+		if (libImg.isFlowActive() && !this.tree.length &&
+			(vkey == lib.vk.left || vkey == lib.vk.right || vkey == lib.vk.pgUp ||
+			 vkey == lib.vk.pgDn || vkey == lib.vk.home || vkey == lib.vk.end ||
+			 vkey == lib.vk.up || vkey == lib.vk.dn)) return;
 		if (vkey == lib.vk.collapseAll && !lib.panel.imgView) this.collapseAll();
 		if (vkey == lib.vk.expand && !lib.panel.imgView) {
 			const isSel = this.tree.some(v => v.sel);

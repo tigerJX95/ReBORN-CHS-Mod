@@ -1,6 +1,6 @@
-**Current release: FIX66 (2026-10-24)**
+**Current release: FIX67 (2026-10-31)**
 
-Includes validated turntable coverage, RCA logo cropping, custom-theme and CD eject fixes. The validated custom-theme script is now integrated at `scripts/Base/gr-menu-custom.js` alongside the other scripts. See `docs/FIX66_整合与回归说明.md`.
+Integrates the user-tested CD artwork source, tiny white center dot, 3D CoverFlow navigation and asynchronous cache fixes, while retaining validated FIX66 behavior. See [FIX67 changelog](CHANGELOG.en.md) and [release checklist](docs/FIX67_正式版发布与回归.md).
 
 [简体中文](./README.md) | **English**
 
@@ -15,19 +15,14 @@ An unofficial modification of Chinese-localized TT / Georgia-ReBORN scripts for 
 - Custom lyrics colors, gradient masks, interlude countdown, and 3D album CoverFlow.
 - Waveform progress display, adaptive Details typography, album artwork, and metadata display.
 
-## What's new in FIX66
 
-- Keep one absolute 3.5-second deadline across repeated CD eject transitions before waveform work begins.
-- Preserve all existing FIX65 optimizations.
+## What's new in FIX67
 
-## What's new in FIX65
+- Fix custom dropdown selection and closing edge cases.
+- Use the actual disc artwork in turntable mode, preserving its center details and small white dot instead of falling back to the square album cover.
+- Fix disc-art loading when the ordinary Details disc display setting is disabled, plus initialization and async error recovery.
+- Improve 3D CoverFlow idle recentering, navigation bounds, stale image request validation and cache work.
 
-- Bound the full-line arc-lyrics bitmap cache to 32 entries and 4 million aggregate pixels, excluding oversized bitmaps from long-term retention.
-- Improved blurred artwork cache cleanup when immersive lyrics are changed or hidden.
-- Improved clearing of all three ArtCache stores and their LRU indices, with safeguards for invalid bitmap entries and approximate cache diagnostics.
-- **In album mode, complete CD disc-eject animation before loading waveform cache data or initiating waveform analysis**, reducing concurrent work during the animation.
-- Yield one UI event-loop turn after disc eject; guard against obsolete track requests on rapid switching and use a bounded wait fallback.
-- Preserve native AudioWizard handling, 500 ms waveform debounce, SACD ISO behavior, and UTF-8 BOM compatibility.
 
 See [CHANGELOG.en.md](CHANGELOG.en.md) for release history.
 

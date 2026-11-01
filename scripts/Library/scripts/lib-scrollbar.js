@@ -786,7 +786,10 @@ class LibScrollbar {
 		// 3D Flow WHEEL SAFE FIX4: one callback still means exactly one album.
 		// While animation is active, extend the live target instead of queuing a
 		// second animation. Keep it within three rows of the rendered position.
-		if (libSet.albumArtFlowMode && grSet.libraryDesign === 'flowMode' && grSet.libraryLayout === 'full' && lib.panel.imgView && step) {
+		if (libSet.albumArtFlowMode && grSet.libraryDesign === 'flowMode' && grSet.libraryLayout === 'full' && lib.panel.imgView) {
+			// Wheel devices occasionally deliver zero/invalid steps during a gesture.
+			// Do not feed these through the ordinary grid scroller in flow mode.
+			if (!Number.isFinite(step) || !step || !Number.isFinite(this.row.h) || this.row.h <= 0 || !Number.isFinite(this.scroll)) return;
 			const dir = step > 0 ? 1 : -1;
 			// The centre-based horizontal endpoint can fall between grid rows.
 			// Preserve one full album step when reversing from that endpoint.

@@ -262,7 +262,15 @@ class Details {
 	constructor() {
 		// Turntable PRE1: panel properties persist separately from existing TT settings.
 		this.turntableMode = window.GetProperty('TT 唱机原型 PRE1：启用', false);
-		this.turntableArtwork = window.GetProperty('TT 唱机原型 PRE1：图像', 'cover');
+		// Use the actual CD artwork by default; migrate the old cover default once.
+		const discSourceMigrationKey = 'TT 唱机：CD 原图模式迁移 v1';
+		const discSourceMigrated = window.GetProperty(discSourceMigrationKey, false);
+		this.turntableArtwork = window.GetProperty('TT 唱机原型 PRE1：图像', 'disc');
+		if (!discSourceMigrated) {
+			this.turntableArtwork = 'disc';
+			window.SetProperty('TT 唱机原型 PRE1：图像', 'disc');
+			window.SetProperty(discSourceMigrationKey, true);
+		}
 		this.turntableLyricsEnabled = window.GetProperty('TT 唱机：滚动歌词', true);
 		this.turntableLyricsInitTimer = null;
 		this.turntableAngle = 0;
@@ -1122,9 +1130,10 @@ class Details {
 
 	getTurntableRecord(size) {
 		size = Math.max(16, Math.min(1024, Math.round(size)));
-		// Only fall back to cover after the disc lookup completes, never during its decode.
+		// In CD mode, never substitute the square album cover for missing disc art.
+		// Preserve the original CD art pixels, including its own center artwork.
 		const source = this.turntableArtwork === 'disc'
-			? (this.turntableDiscPending ? null : this.discArt || grm.ui.albumArt)
+			? (this.turntableDiscPending ? null : this.discArt)
 			: grm.ui.albumArt;
 		const badgeVisible = !!(grSet.showHiResAudioBadge && grm.ui.isTrackHiRes && fb.IsPlaying);
 		// Bake only when the artwork, size or visible badge configuration actually changes.
@@ -1676,12 +1685,10 @@ class Details {
 		} else {
 			gr.DrawImage(img, dx, dy, d, d, 0, 0, img.Width, img.Height, recordAngle);
 		}
-		// Small stationary spindle; preserve the center design on the source CD.
-		const cx = dx + d / 2, cy = dy + d / 2;
-		gr.FillEllipse(cx - 4 * u, cy - 4 * u, 8 * u, 8 * u, RGB(71, 76, 84));
-		gr.FillEllipse(cx - 2.8 * u, cy - 2.8 * u, 5.6 * u, 5.6 * u, RGB(221, 225, 232));
-		// Keep the bright cap concentric too; an offset glint looks like a misplaced spindle.
-		gr.FillEllipse(cx - u, cy - u, 2 * u, 2 * u, RGB(255, 255, 255));
+		// Keep the printed/transparent center from the CD image unobstructed.
+		// Only add the tiny white spindle tip highlight that users expect.
+		const dot = Math.max(1.2, 2.0 * u);
+		gr.FillEllipse(dx + d / 2 - dot / 2, dy + d / 2 - dot / 2, dot, dot, RGB(245, 247, 250));
 		const px = x + w * 0.89, py = dy + d * 0.15;
 		const smooth = this.turntableArm * this.turntableArm * (3 - 2 * this.turntableArm);
 		const angle = 4 + 20 * smooth;
@@ -3827,7 +3834,8 @@ class Details {
 
 		grm.debug.setDebugProfile(grm.debug.showDebugTiming || grCfg.settings.showDebugPerformanceOverlay, 'create', '获取碟片');
 
-		if (grSet.displayDiscArt && !grm.ui.isStreaming) {
+		// Turntable CD art remains available even when the ordinary Details disc overlay is disabled.
+		if ((grSet.displayDiscArt || this.needsTurntableDisc()) && !grm.ui.isStreaming) {
 			const discArtPath = this.findDiscArtPath();
 			const discArtEmbedded = grSet.discArtEmbedded && (grSet.noDiscArtStub || grSet.showDiscArtStub);
 
@@ -3914,7 +3922,8 @@ class Details {
 			}
 		}
 
-		if (grSet.displayDiscArt && !grm.ui.isStreaming) {
+		// A visible turntable needs its CD art even when the regular details disc is disabled.
+		if ((grSet.displayDiscArt || this.needsTurntableDisc()) && !grm.ui.isStreaming) {
 			if (this.discArt) {
 				this.updateDiscArt();
 			} else {
@@ -4019,9 +4028,15 @@ class Details {
 			});
 		}).catch(() => {
 			if (this.detailsClosed || loadToken !== this.discArtLoadToken) return;
+			// A failed asynchronous disc load must release the pending track-entry state.
+			// Otherwise the current labels/cover transition can remain deferred indefinitely.
 			this.turntableDiscPending = false;
 			this.discArt = null;
-			if (this.isTurntableActive()) window.Repaint();
+			this.discArtImageKey = '';
+			if (grm.ui.displayDetails) {
+				this.notifyDiscArtTrackEntryReady();
+				this.repaintDiscArt();
+			} else if (this.isTurntableActive()) window.Repaint();
 		});
 	}
 

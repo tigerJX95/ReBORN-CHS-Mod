@@ -216,7 +216,7 @@ class LibMenuItems {
 			libMenu.newItem({ menuName: '3D CD 流转设置', str: '回到正在播放的专辑',
 				func: () => { libImg.noteFlowActivity(); libImg.returnFlowToNowPlaying(); }, flags: fb.IsPlaying ? LIB_MF_STRING : LIB_MF_GRAYED });
 			const sections = [
-				['无操作自动归位', 'flowIdleSeconds', [['关闭',0],['3 秒',3],['5 秒（默认）',5],['10 秒',10]]],
+				['无操作自动归位', 'flowIdleSeconds', [['关闭',0],['3 秒',3],['5 秒（默认）',5],['10 秒',10],['15 秒',15],['30 秒',30]]],
 				['中央专辑大小', 'flowCenterSize', [['小 · 80%',80],['标准 · 100%',100],['大 · 120%',120],['更大 · 140%',140]]],
 				['透视深度', 'flowDepth', [['浅 · 60%',60],['标准 · 100%',100],['深 · 140%',140]]],
 				['排列疏密', 'flowSpacing', [['紧凑 · 80%',80],['标准 · 100%',100],['舒展 · 120%',120]]]

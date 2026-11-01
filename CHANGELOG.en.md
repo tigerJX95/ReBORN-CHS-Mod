@@ -1,3 +1,44 @@
+## FIX67 — 2026-10-31 (stable release)
+
+- **Custom dropdowns:** Correct handling of selected index `0` and closing an expanded menu by clicking its header.
+- **Turntable CD art:** Prefer actual CD artwork; do not substitute an album cover when disc art is missing. Preserve the disc image's original center, tiny white spindle point, silver platter, rotation and eject behavior.
+- **CD loading:** Decouple turntable disc-art loading from the regular Details disc-art display setting; fix re-entry initialization and pending-state cleanup after failed asynchronous loads.
+- **3D CoverFlow:** Correct idle return-to-playing timer rearming, add 15 s / 30 s options, and guard empty search results, invalid wheel deltas and navigation boundaries.
+- **Asynchronous CoverFlow cache:** Reject stale requests after library tree changes and reduce repeated cache-budget work.
+
+
+### FIX67 candidate: 3D cover flow async image safety and cache
+- Validate album identity before committing async image results after filtering or library rebuilds.
+- Do not mark stale requests as failed; clear their pending cache markers.
+- Avoid repeated LRU image budget scans for the same cached frame.
+- No changes to 3D layout, turntable visuals, or menu interaction.
+
+## FIX67 · 3D Flow stability candidate
+- Make the idle return fire only once per interaction-free interval; a new interaction starts a fresh timer.
+- Add 15- and 30-second auto-return options; retain existing choices and the five-second default.
+- Preserve 3D geometry, cover interaction, and all previously accepted CD visuals.
+- Syntax and state checks passed; in-player verification is pending.
+
+## FIX67 · Functional compatibility candidate (based on Preview 2)
+- Fix turntable disc-art initialization when regular details disc-art display is disabled.
+- Release pending track-entry/label state and invalidate disc-art identity after an async image-load failure.
+- Preserve the verified original CD center, tiny white spindle highlight, metallic platter and Preview 2 menu behavior.
+
+
+### FIX67 Preview 2 (CD source center + white dot)
+- Restores only the tiny white spindle-tip highlight while preserving the original CD artwork center.
+- Does not restore the gray ring, black hub or other synthetic center overlays.
+### FIX67 Preview 2 (pending in-player verification)
+- Closing an expanded custom dropdown via its header preserves the previous selection and avoids dispatching an invalid index.
+
+## FIX67 Preview 1 — Custom dropdown selection stability
+
+- Fix index 0 incorrectly becoming the unselected state in `CustomMenuDropDown`.
+- Accept only in-range integer indices; invalid values remain unselected.
+- Add eight regression cases; retain the FIX66 turntable, RCA, custom-theme input and CD eject behavior.
+- Exclude the abandoned idle lower-bar lyric previews.
+- Status: preview candidate, pending player-level validation.
+
 ## FIX66 · Licensing and documentation update (no runtime changes)
 
 - Add root `LICENSE` (MIT) for licensable original contributions of this project.
@@ -55,3 +96,7 @@
 
 - Corrected custom-theme lyric color lookup and biography word-highlight edge blending.
 - Preserved independent lyric color settings for the main and biography views.
+
+### FIX67 Preview 2 · CD art loading compatibility
+- Turntable CD art remains loadable when ordinary disc-art display is disabled.
+- Preserves approved original CD center, white spindle highlight and silver platter.
