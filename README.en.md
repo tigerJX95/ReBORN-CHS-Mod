@@ -29,7 +29,7 @@ See [CHANGELOG.en.md](CHANGELOG.en.md) for release history.
 ## Demo Video
 - Disc transition animations (ejecting and inserting a disc)
 
-  https://github.com/user-attachments/assets/76316d03-1e34-4b1a-be36-9f69b7450a86
+  https://github.com/user-attachments/assets/8b64b629-7d0c-48e3-8da0-e2b09481cefa
 
 - Phonograph mode and vertically-oriented Chinese lyrics
 
