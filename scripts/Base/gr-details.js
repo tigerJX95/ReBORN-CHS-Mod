@@ -611,6 +611,8 @@ class Details {
 		this.discArtRotationTimer = null;
 		/** @private @type {number|null} The timer used by the play/stop disc art slide animation. */
 		this.discArtSlideTimer = null;
+		/** @private @type {boolean} Keep the disc face at its native angle until the outward eject finishes. */
+		this.discArtEjectAngleHeld = false;
 		/** @private @type {boolean|null} The last requested disc art visibility state. */
 		this.discArtSlideVisible = null;
 		/** @private @type {number|null} The last responsive slide target. */
@@ -626,7 +628,7 @@ class Details {
 		/** @private @type {number} Shorter one-way eject duration used by track changes. */
 		this.discArtTrackEntryDuration = 420;
 		/** @private @type {number} Smooth progressive eject duration used by both entry paths. */
-		this.discArtProgressiveEntryDuration = 700;
+		this.discArtProgressiveEntryDuration = 600;
 		/** @private @type {number|null} Settles the latest ready disc before starting its track-change entry. */
 		this.discArtTrackEntryTimer = null;
 		/** @private @type {number} Small settle delay that coalesces artwork updates for the same track. */
@@ -1833,7 +1835,8 @@ class Details {
 		// * GDI+ path
 		const paintAngle = this.getDiscArtRotationAngle();
 		const frameCount = Math.max(1, grSet.spinDiscArtImageCount);
-		const frameIndex = grSet.spinDiscArt ? Math.round(paintAngle * frameCount / 360) % frameCount : this.discArtRotationIndex;
+		const frameIndex = this.discArtEjectAngleHeld ? 0 :
+			(grSet.spinDiscArt ? Math.round(paintAngle * frameCount / 360) % frameCount : this.discArtRotationIndex);
 		const discArtImg = this.getDiscArtFrame(frameIndex, paintAngle) || this.discArtRotation;
 
 		if (!grSet.filterAlbumArt && grm.ui.discArtImageDisplayed || !discArtImg) {
@@ -1848,7 +1851,7 @@ class Details {
 		// Missing cache frames keep moving by rotating the nearest prepared frame by
 		// only its residual angle. Ready grid frames retain the cheap unrotated draw.
 		gr.DrawImage(discArtImg, this.discArtSize.x, this.discArtSize.y, this.discArtSize.w, this.discArtSize.h,
-			0, 0, discArtImg.Width, discArtImg.Height, grSet.spinDiscArt ? this.discArtFrameResidualAngle : 0);
+			0, 0, discArtImg.Width, discArtImg.Height, (grSet.spinDiscArt || this.discArtEjectAngleHeld) ? this.discArtFrameResidualAngle : 0);
 	}
 
 	/**
@@ -3048,7 +3051,17 @@ class Details {
 					this.discArtRotationTimer = null;
 					this.discArtRotationNextTick = 0;
 				}
-				if (type === 'discArtSlide') this.discArtSlideTimer = null;
+				if (type === 'discArtSlide') {
+					this.discArtSlideTimer = null;
+					// FIX67 RC: interrupted eject must never strand the 0-degree hold.
+					// On ordinary completion the hold has already been released by the slide callback.
+					if (this.discArtEjectAngleHeld) {
+						this.discArtEjectAngleHeld = false;
+						this.discArtRotationAngle = 0;
+						this.discArtRotationEpoch = fb.IsPlaying && !fb.IsPaused && grSet.spinDiscArt
+							? grAnimationManager.now() : 0;
+					}
+				}
 				if (type === 'discArtFade') this.discArtFadeTimer = null;
 				if (type === 'discArtCommit') this.discArtCommitTimer = null;
 				if (type === 'discArtTrackEntry') this.discArtTrackEntryTimer = null;
@@ -4101,6 +4114,7 @@ class Details {
 		this.pauseDiscArtRotation();
 		this.clearTimer('discArt');
 		this.clearTimer('discArtSlide');
+		this.discArtEjectAngleHeld = false;
 		this.clearTimer('discArtFade');
 		this.clearTimer('discArtPrecompute');
 		this.clearTimer('discArtDeferredStart');
@@ -4222,6 +4236,7 @@ class Details {
 		this.discArtEntryOnOpen = false;
 		this.discArtTrackEntryPending = false;
 		this.discArtTrackEntryAwaitingArtwork = false;
+		this.discArtEjectAngleHeld = false;
 		this.clearTimer('discArtTrackEntry');
 	}
 
@@ -4503,9 +4518,24 @@ class Details {
 
 		const startX = Number.isFinite(this.discArtSize.x) ? this.discArtSize.x : targetX;
 		const distance = targetX - startX;
+		// Reveal the CD in its own native orientation, then start spinning AFTER eject.
+		// Rotation may already have advanced while waiting for async artwork/settling.
+		const holdAngle = distance > 0 && this.discArtSlideVisible;
+		this.discArtEjectAngleHeld = holdAngle;
+		if (holdAngle) {
+			this.discArtRotationAngle = 0;
+			this.discArtRotationEpoch = 0;
+			// FIX67 Preview 3: avoid native GDI rotation-frame generation
+			// competing with the time-sensitive outward slide. Resume once settled.
+			if (!D2D) {
+				this.clearTimer('discArtPrecompute');
+				this.clearTimer('discArtDeferredStart');
+			}
+		}
 		this.discArtSlidePreviousX = startX;
 		if (this.discArtSlideVisible) this.discArtFrontHidden = false;
 		if (Math.abs(distance) < 1) {
+			this.discArtEjectAngleHeld = false;
 			this.discArtSize.x = targetX;
 			this.discArtFrontHidden = grSet.discArtOnTop && !this.discArtSlideVisible;
 			this.repaintDiscArtSlide(startX, targetX);
@@ -4526,6 +4556,16 @@ class Details {
 			this.discArtSlidePreviousX = this.discArtSize.x;
 
 			if (progress >= 1) {
+				if (this.discArtEjectAngleHeld) {
+					this.discArtRotationAngle = 0;
+					this.discArtRotationEpoch = fb.IsPlaying && !fb.IsPaused && grSet.spinDiscArt ? now : 0;
+					this.discArtEjectAngleHeld = false;
+					// Re-start GDI precomputation after the final slide frame.
+					// Reuse the existing guarded deferred start and request tokens.
+					if (!D2D && fb.IsPlaying && !fb.IsPaused && grSet.spinDiscArt) {
+						this.setDiscArtRotationTimer(true);
+					}
+				}
 				this.clearTimer('discArtSlide');
 				const previousX = this.discArtSize.x;
 				this.discArtSize.x = targetX;
@@ -4535,7 +4575,9 @@ class Details {
 				this.discArtSlidePreviousX = null;
 				if (onComplete) onComplete();
 			}
-		}, Math.max(16, grSet.spinDiscArtRedrawInterval));
+		// FIX67: Slide cadence is independent of the disc rotation setting.
+		// A coarse spin interval should not turn the eject transition into large jumps.
+		}, Math.max(16, Math.min(30, Number(grSet.spinDiscArtRedrawInterval) || 30)));
 	}
 
 	/**
@@ -4816,7 +4858,7 @@ class Details {
 		const precomputeBatch = () => {
 			this.discArtPrecomputeTimer = null;
 			if (this.usesTurntableRenderer()) return;
-			if (grAnimationManager.resizing || window.IsVisible === false || !fb.IsPlaying || fb.IsPaused) return;
+			if (this.discArtEjectAngleHeld || grAnimationManager.resizing || window.IsVisible === false || !fb.IsPlaying || fb.IsPaused) return;
 			if (precomputeToken !== this.discArtLoadToken || !this.discArt || this.discArt.Path !== currentAlbumId || !grm.ui.displayDetails ||
 				layoutWidth !== Math.round(this.discArtSize.w) || layoutHeight !== Math.round(this.discArtSize.h) || imageCount !== grSet.spinDiscArtImageCount) return;
 
@@ -4857,6 +4899,7 @@ class Details {
 	 * @returns {number}
 	 */
 	getDiscArtRotationAngle(now = grAnimationManager.now()) {
+		if (this.discArtEjectAngleHeld) return 0;
 		if (!this.discArtRotationEpoch || !fb.IsPlaying || fb.IsPaused || !grSet.spinDiscArt) {
 			return (this.discArtRotationAngle % 360 + 360) % 360;
 		}
@@ -4982,7 +5025,7 @@ class Details {
 			this.discArtDeferredStartTimer = setTimeout(() => {
 				this.discArtDeferredStartTimer = null;
 				// A deferred bitmap job must not outlive the playback/view state that queued it.
-				if (loadToken !== this.discArtLoadToken || !grm.ui.displayDetails ||
+				if (loadToken !== this.discArtLoadToken || this.discArtEjectAngleHeld || !grm.ui.displayDetails ||
 					grSet.layout !== 'default' || !grSet.displayDiscArt || !grSet.spinDiscArt ||
 					!fb.IsPlaying || fb.IsPaused || grAnimationManager.resizing ||
 					grm.ui.albumArtCorrupt || !grm.ui.albumArt || !this.discArt ||

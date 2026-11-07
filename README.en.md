@@ -1,6 +1,6 @@
-**Current release: FIX67 (2026-10-31)**
+**Current release: FIX67 (2026-11-07)**
 
-Integrates the user-tested CD artwork source, tiny white center dot, 3D CoverFlow navigation and asynchronous cache fixes, while retaining validated FIX66 behavior. See [FIX67 changelog](CHANGELOG.en.md) and [release checklist](docs/FIX67_正式版发布与回归.md).
+Includes the CD artwork center, spindle highlight, silver platter and CoverFlow fixes; improves eject timing, face-forward entry, GDI+ precomputation scheduling and interrupted-animation cleanup. See the [FIX67 changelog](CHANGELOG.en.md) and [release checks](docs/FIX67_出碟优化与发布回归.md).
 
 [简体中文](./README.md) | **English**
 
@@ -15,7 +15,6 @@ An unofficial modification of Chinese-localized TT / Georgia-ReBORN scripts for 
 - Custom lyrics colors, gradient masks, interlude countdown, and 3D album CoverFlow.
 - Waveform progress display, adaptive Details typography, album artwork, and metadata display.
 
-
 ## What's new in FIX67
 
 - Fix custom dropdown selection and closing edge cases.
@@ -24,12 +23,27 @@ An unofficial modification of Chinese-localized TT / Georgia-ReBORN scripts for 
 - Improve 3D CoverFlow idle recentering, navigation bounds, stale image request validation and cache work.
 
 
+## What's new in FIX66
+
+- Keep one absolute 3.5-second deadline across repeated CD eject transitions before waveform work begins.
+- Preserve all existing FIX65 optimizations.
+
+
+## What's new in FIX65
+
+- Bound the full-line arc-lyrics bitmap cache to 32 entries and 4 million aggregate pixels, excluding oversized bitmaps from long-term retention.
+- Improved blurred artwork cache cleanup when immersive lyrics are changed or hidden.
+- Improved clearing of all three ArtCache stores and their LRU indices, with safeguards for invalid bitmap entries and approximate cache diagnostics.
+- **In album mode, complete CD disc-eject animation before loading waveform cache data or initiating waveform analysis**, reducing concurrent work during the animation.
+- Yield one UI event-loop turn after disc eject; guard against obsolete track requests on rapid switching and use a bounded wait fallback.
+- Preserve native AudioWizard handling, 500 ms waveform debounce, SACD ISO behavior, and UTF-8 BOM compatibility.
+
 See [CHANGELOG.en.md](CHANGELOG.en.md) for release history.
 
 ## Demo Video
 - Disc transition animations (ejecting and inserting a disc)
 
-  https://github.com/user-attachments/assets/8b64b629-7d0c-48e3-8da0-e2b09481cefa
+  https://github.com/user-attachments/assets/76316d03-1e34-4b1a-be36-9f69b7450a86
 
 - Phonograph mode and vertically-oriented Chinese lyrics
 
@@ -71,3 +85,5 @@ This is an unofficial personal modification. Please retain upstream attribution 
 ## License
 
 Original modifications, patches, and documentation contributions **owned and licensable by this project’s contributors** are offered under the [MIT License](LICENSE). This does **not** relicense Georgia-ReBORN, Library Tree, Biography, or third-party images, fonts, and other pre-existing materials. Their applicable rights and licenses remain with their respective owners. See [third-party notices](THIRD_PARTY_NOTICES.en.md). Redistribution must comply with the relevant upstream license and attribution obligations.
+
+**FIX67 stable (eject refinements)**: 600 ms progressive eject, 0° face-forward entry, GDI+ precompute deferral and interrupted-slide hold cleanup. Preview 3 was player-tested; the new RC cleanup still requires a targeted in-player regression check. See [release checks](docs/FIX67_正式版发布与回归.md).

@@ -1,11 +1,29 @@
-## FIX67 — 2026-10-31 (stable release)
+## FIX67 — 2026-11-07 (stable release)
+
+Consolidated FIX67 release: includes the previously accepted CD artwork, menu, CoverFlow and asynchronous loading improvements, plus the final disc-eject animation refinements. No separate point release.
+
+- **Disc eject:** Progressive motion now takes 600 ms (previously 700 ms); update cadence decoupled from disc rotation redraw.
+- **Correct initial orientation:** Keep CD art at 0° while sliding out; begin rotation after eject completes.
+- **GDI+ performance:** Defer rotation frame precomputation until eject completes.
+- **Interrupted eject:** Clear angle-hold state on view changes, track switches and animation interruption.
+- **CD art:** Preserve native disc image and center area, tiny white spindle highlight and original silver platter.
+- **CoverFlow and menus:** Retain timer, keyboard/mouse navigation, async image cache, dropdown and disc load reliability improvements.
+
+**Validation:** Automated syntax and regression tests pass. The disc eject Preview 3 was user-tested; the final RC interruption cleanup still requires a targeted player check before release. See [release checks](docs/FIX67_出碟优化与发布回归.md).
+
+## FIX67 — 2026-10-31 (earlier integration record)
+
+Integrated from the user-tested `FIX67_flow_async_cache_candidate` baseline; excludes abandoned lower-bar lyrics and the Preview 3–10 turntable visual experiments.
 
 - **Custom dropdowns:** Correct handling of selected index `0` and closing an expanded menu by clicking its header.
 - **Turntable CD art:** Prefer actual CD artwork; do not substitute an album cover when disc art is missing. Preserve the disc image's original center, tiny white spindle point, silver platter, rotation and eject behavior.
 - **CD loading:** Decouple turntable disc-art loading from the regular Details disc-art display setting; fix re-entry initialization and pending-state cleanup after failed asynchronous loads.
 - **3D CoverFlow:** Correct idle return-to-playing timer rearming, add 15 s / 30 s options, and guard empty search results, invalid wheel deltas and navigation boundaries.
 - **Asynchronous CoverFlow cache:** Reject stale requests after library tree changes and reduce repeated cache-budget work.
+- **Compatibility:** Retain validated FIX66 RCA logo, disc fill, custom-theme and CD eject fixes.
+- **Distribution:** Update bilingual documentation, third-party notices and SHA-256 checksums.
 
+**Validation:** Navigation and async-cache candidates were user-tested; the packaged release should still receive a complete cross-feature regression check.
 
 ### FIX67 candidate: 3D cover flow async image safety and cache
 - Validate album identity before committing async image results after filtering or library rebuilds.
