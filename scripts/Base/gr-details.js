@@ -613,6 +613,8 @@ class Details {
 		this.discArtSlideTimer = null;
 		/** @private @type {boolean} Keep the disc face at its native angle until the outward eject finishes. */
 		this.discArtEjectAngleHeld = false;
+		/** @private @type {boolean} Keep the disc exposed across transient pause/resume callback states. */
+		this.discArtPauseVisibilityHold = false;
 		/** @private @type {boolean|null} The last requested disc art visibility state. */
 		this.discArtSlideVisible = null;
 		/** @private @type {number|null} The last responsive slide target. */
@@ -4456,8 +4458,27 @@ class Details {
 	}
 
 	/**
-	 * Synchronizes the disc position with playback and the current responsive layout.
-	 * Playing and paused remain exposed; stopped retracts from the current position.
+	 * Holds the disc in its exposed position across transient player-state changes.
+	 * A resume callback may arrive before fb.IsPlaying becomes true; only clear the
+	 * hold once playback is observably running again, or on an explicit stop event.
+	 * @param {boolean} paused - The playback pause callback state.
+	 */
+	setDiscArtPauseVisibilityHold(paused) {
+		if (paused) {
+			this.discArtPauseVisibilityHold = true;
+		} else if (fb.IsPlaying && !fb.IsPaused) {
+			this.discArtPauseVisibilityHold = false;
+		}
+	}
+
+	/** Clears the pause visibility hold after an explicit playback stop. */
+	clearDiscArtPauseVisibilityHold() {
+		this.discArtPauseVisibilityHold = false;
+	}
+
+	/**
+	 * Synchronizes disc visibility without forcing position on pause/resume.
+	 * Playing and paused remain exposed; stopped playback retracts normally.
 	 */
 	syncDiscArtSlideAnimation() {
 		if (this.discArtExitActive) return;
@@ -4475,7 +4496,12 @@ class Details {
 		}
 
 		const positions = this.getDiscArtSlidePositions();
-		const shouldShow = fb.IsPlaying && positions.ratio > 0;
+		// A resume callback can precede fb.IsPlaying becoming true. Keep the disc
+		// exposed until playback is observably running; explicit stop clears the hold.
+		if (this.discArtPauseVisibilityHold && fb.IsPlaying && !fb.IsPaused) {
+			this.discArtPauseVisibilityHold = false;
+		}
+		const shouldShow = (fb.IsPlaying || fb.IsPaused || this.discArtPauseVisibilityHold) && positions.ratio > 0;
 		const targetX = shouldShow ? positions.targetX : positions.hiddenX;
 		const stateChanged = this.discArtSlideVisible !== shouldShow;
 		const targetChanged = this.discArtSlideTargetX !== targetX;
@@ -4865,12 +4891,28 @@ class Details {
 			const tier = performanceTiers[performanceTierCurrent];
 			let computedInBatch = 0;
 			let inspected = 0;
+			// Count cached frames once per batch. The current rotation frame may be
+			// added by the paint path between batches, so keep this batch-local rather
+			// than maintaining a potentially stale global counter.
+			let readyFrames = this.discArtArray.reduce((count, frame) => count + (frame ? 1 : 0), 0);
 
 			while (computedInBatch < tier.batchSize && inspected < imageCount) {
-				if (precomputeIndex % stride === 0 && !this.discArtArray[precomputeIndex] && this.discArtArray.filter(Boolean).length < maxFrames) {
+				if (precomputeIndex % stride === 0 && !this.discArtArray[precomputeIndex] && readyFrames < maxFrames) {
 					const rotationDegrees = rotationDegreeIncrement * precomputeIndex;
 					const frameStart = Date.now();
-					this.discArtArray[precomputeIndex] = RotateImage(source, width, height, rotationDegrees, grm.artCache.discArtImgMaxRes);
+					let frame;
+					try {
+						frame = RotateImage(source, width, height, rotationDegrees, grm.artCache.discArtImgMaxRes);
+					} catch (e) {
+						// An invalid native bitmap must not propagate out of the deferred task.
+						// Abort this batch without re-queuing a failing rotation job.
+						console.log(`碟片 => 异步旋转帧 ${precomputeIndex} 生成失败：${e && e.message || e}`);
+						return;
+					}
+					if (frame) {
+						this.discArtArray[precomputeIndex] = frame;
+						readyFrames++;
+					}
 					const frameTime = Date.now() - frameStart;
 					updatePerformanceTier(frameTime); // Update per-frame for quicker response
 					grm.debug.debugLog(`碟片 => 预计算碟片图像: ${precomputeIndex} (${this.discArtSize.w}x${this.discArtSize.h}) 旋转: ${rotationDegrees} 度`);
@@ -4880,7 +4922,6 @@ class Details {
 				inspected++;
 			}
 
-			const readyFrames = this.discArtArray.reduce((count, frame) => count + (frame ? 1 : 0), 0);
 			if (readyFrames >= Math.min(imageCount, maxFrames) || inspected >= imageCount && !computedInBatch) {
 				grm.debug.debugLog('碟片 => 所有帧均已预先计算');
 				return;
@@ -4913,7 +4954,15 @@ class Details {
 
 	/** Freezes the time-derived angle before the rotation timer is stopped. */
 	pauseDiscArtRotation() {
-		this.discArtRotationAngle = this.getDiscArtRotationAngle();
+		// The pause callback can run after fb.IsPaused has already become true.
+		// getDiscArtRotationAngle() intentionally stops advancing in that state,
+		// so capture the elapsed angle directly from the last running epoch here.
+		if (this.discArtRotationEpoch && grSet.spinDiscArt && !this.discArtEjectAngleHeld) {
+			const step = 360 / Math.max(1, grSet.spinDiscArtImageCount);
+			const interval = this.discArtRotationInterval || Math.max(1, grSet.spinDiscArtRedrawInterval);
+			const elapsed = Math.max(0, grAnimationManager.now() - this.discArtRotationEpoch);
+			this.discArtRotationAngle = (this.discArtRotationAngle + elapsed * step / interval) % 360;
+		}
 		this.discArtD2DRotationAngle = this.discArtRotationAngle;
 		this.discArtRotationEpoch = 0;
 	}

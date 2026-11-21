@@ -2,11 +2,10 @@
 
 [简体中文](../开发记录.md) | **English**
 
-## Current baseline
+## Current version
 
-- Confirmed on 2026-10-14: FIX51, the edition with the full feature set based on Chinese-localized TT / Georgia-ReBORN.
-- GitHub maintains only the latest full-featured edition, not the simplified community edition. No installers or release artifacts are produced.
-- The current development version is FIX52; FIX51 remains the confirmed stable baseline.
+- Current version: FIX68 (2026-11-21).
+- This repository maintains modified scripts and accompanying resources based on the Chinese-localized TT / Georgia-ReBORN theme; it does not include foobar2000.
 
 ## Design decisions
 
@@ -26,9 +25,9 @@
 
 ## Repository scope
 
-The repository contains 31 JavaScript files, library resources, existing license information, and documentation. It excludes previous source copies, the complete runtime setup, and personal configuration.
+The repository contains 32 runtime JavaScript files, Library resources, license notices, and documentation.
 
-No automated test suite is included and CI is not configured. Check affected pages and features after code changes.
+The repository includes regression scripts in `tests/`. Review affected pages and functionality after code changes.
 
 ## Environment information to document
 
@@ -36,8 +35,8 @@ No automated test suite is included and CI is not configured. Check affected pag
 - Script-component name and version, and the Chinese-localized TT setup identifier.
 - Main-project and Biography-component license files from the complete setup.
 
-This information describes compatibility and sources; it does not require uploading the full player setup to GitHub.
+This information describes compatibility and sources; it does not require bundling the complete player setup.
 
 ## Future notes
 
-Record the requirement, final design, changed files, checks, and outstanding questions for each change. Keep agreed conclusions rather than complete chat transcripts. Mark a stable version as the new baseline after verification.
+Record the requirement, final design, changed files, checks, and outstanding questions for each change. Keep agreed conclusions rather than complete chat transcripts. Document version changes in the changelog.

@@ -2,7 +2,7 @@
 
 [简体中文](../文件清单.md) | **English**
 
-The current script release is FIX66. Source paths correspond to relative paths in the runtime setup; `scripts/` is the repository's source directory.
+The current script release is FIX68 (2026-11-21). Source paths correspond to relative paths in the runtime setup; `scripts/` is the repository's source directory.
 
 | Category | JavaScript files |
 | --- | --- |
@@ -50,4 +50,4 @@ Root `LICENSE` applies to original contributions this project has the right to l
 
 ## Resources and checksums
 
-The library directory retains its original package metadata, license, HTML, styles, and default image resources. `SHA256SUMS` records SHA-256 values for scripts and resources for comparison between copies.
+The library directory retains its original package metadata, license, HTML, styles, and default image resources. `SHA256SUMS.txt` records SHA-256 values for scripts and resources for comparison between copies.

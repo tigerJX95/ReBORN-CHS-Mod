@@ -1215,6 +1215,7 @@ function on_playback_order_changed(pbo) {
  * @param {boolean} state - Whether the playback is paused or not.
  */
 function on_playback_pause(state) {
+	grm.details.setDiscArtPauseVisibilityHold(state);
 	grm.ui.handlePlaybackPause(state);
 	grm.details.updateTurntableState();
 
@@ -1298,6 +1299,7 @@ function on_playback_starting(cmd, is_paused) {
 function on_playback_stop(reason) {
 	grm.debug.debugLog('播放 => 重绘 播放_停止:', reason);
 
+	grm.details.clearDiscArtPauseVisibilityHold();
 	grm.ui.handlePlaybackStop(reason);
 	grm.details.updateTurntableState();
 

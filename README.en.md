@@ -1,6 +1,6 @@
-**Current release: FIX67 (2026-11-07)**
+**Current release: FIX68 (2026-11-21)**
 
-Includes the CD artwork center, spindle highlight, silver platter and CoverFlow fixes; improves eject timing, face-forward entry, GDI+ precomputation scheduling and interrupted-animation cleanup. See the [FIX67 changelog](CHANGELOG.en.md) and [release checks](docs/FIX67_出碟优化与发布回归.md).
+FIX68 improves disc rotation-frame precomputation, pause/resume angle continuity, and GDI+ asynchronous failure handling while retaining FIX67 visual and eject behavior. See the [FIX68 changelog](CHANGELOG.en.md).
 
 [简体中文](./README.md) | **English**
 
@@ -15,28 +15,13 @@ An unofficial modification of Chinese-localized TT / Georgia-ReBORN scripts for 
 - Custom lyrics colors, gradient masks, interlude countdown, and 3D album CoverFlow.
 - Waveform progress display, adaptive Details typography, album artwork, and metadata display.
 
-## What's new in FIX67
+## What's new in FIX68
 
-- Fix custom dropdown selection and closing edge cases.
-- Use the actual disc artwork in turntable mode, preserving its center details and small white dot instead of falling back to the square album cover.
-- Fix disc-art loading when the ordinary Details disc display setting is disabled, plus initialization and async error recovery.
-- Improve 3D CoverFlow idle recentering, navigation bounds, stale image request validation and cache work.
-
-
-## What's new in FIX66
-
-- Keep one absolute 3.5-second deadline across repeated CD eject transitions before waveform work begins.
-- Preserve all existing FIX65 optimizations.
-
-
-## What's new in FIX65
-
-- Bound the full-line arc-lyrics bitmap cache to 32 entries and 4 million aggregate pixels, excluding oversized bitmaps from long-term retention.
-- Improved blurred artwork cache cleanup when immersive lyrics are changed or hidden.
-- Improved clearing of all three ArtCache stores and their LRU indices, with safeguards for invalid bitmap entries and approximate cache diagnostics.
-- **In album mode, complete CD disc-eject animation before loading waveform cache data or initiating waveform analysis**, reducing concurrent work during the animation.
-- Yield one UI event-loop turn after disc eject; guard against obsolete track requests on rapid switching and use a bounded wait fallback.
-- Preserve native AudioWizard handling, 500 ms waveform debounce, SACD ISO behavior, and UTF-8 BOM compatibility.
+- Reduce repeated scans of cached frames during GDI+ disc-rotation precomputation.
+- Freeze the actual disc rotation angle on pause and resume from the same angle without snapping back.
+- Remove the ineffective pause-position rewrite and retain a narrow visibility transition guard.
+- Safely terminate failed asynchronous precomputation without discarding successful frames.
+- Preserve FIX67 eject timing, native CD center, white spindle highlight, silver platter, menus, and 3D CoverFlow.
 
 See [CHANGELOG.en.md](CHANGELOG.en.md) for release history.
 
@@ -85,5 +70,3 @@ This is an unofficial personal modification. Please retain upstream attribution 
 ## License
 
 Original modifications, patches, and documentation contributions **owned and licensable by this project’s contributors** are offered under the [MIT License](LICENSE). This does **not** relicense Georgia-ReBORN, Library Tree, Biography, or third-party images, fonts, and other pre-existing materials. Their applicable rights and licenses remain with their respective owners. See [third-party notices](THIRD_PARTY_NOTICES.en.md). Redistribution must comply with the relevant upstream license and attribution obligations.
-
-**FIX67 stable (eject refinements)**: 600 ms progressive eject, 0° face-forward entry, GDI+ precompute deferral and interrupted-slide hold cleanup. Preview 3 was player-tested; the new RC cleanup still requires a targeted in-player regression check. See [release checks](docs/FIX67_正式版发布与回归.md).
